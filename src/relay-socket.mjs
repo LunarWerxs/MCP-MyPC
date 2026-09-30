@@ -55,7 +55,7 @@ export class RelaySocket {
       this.#connecting = ws;
       ws.binaryType = 'arraybuffer';
       timer = setTimeout(() => {
-        settle(new Error('Could not reach the MPC-MyPC relay. Check the internet connection.'));
+        settle(new Error('Could not reach the MCP-MyPC relay. Check the internet connection.'));
         try { ws.close(); } catch {}
       }, timeoutMs);
       ws.onopen = () => {

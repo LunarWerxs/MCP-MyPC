@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
 if (!globalThis.WebSocket) {
-  console.error(`MPC-MyPC needs Node.js 22 or newer (this is ${process.version}). Install the current LTS from https://nodejs.org and run this again.`);
+  console.error(`MCP-MyPC needs Node.js 22 or newer (this is ${process.version}). Install the current LTS from https://nodejs.org and run this again.`);
   process.exit(1);
 }
 
@@ -16,7 +16,7 @@ const { agentHealth, device, runAgent } = await import('../src/agent.mjs');
 const setup = await import('../src/setup.mjs');
 
 const MYPC = `node "${CLI}"`;
-const REPO = 'https://github.com/LunarWerxs/MPC-MyPC';
+const REPO = 'https://github.com/LunarWerxs/MCP-MyPC';
 const [command, ...rest] = process.argv.slice(2);
 const flags = parseFlags(rest);
 
@@ -26,7 +26,7 @@ const commands = {
       throw new Error('--relay must start with https:// (or be http://localhost for a relay you are testing on this computer).');
     }
     const config = updateConfig({ name: flags.name ?? loadConfig().name, ...(flags.relay && { relay: flags.relay }) });
-    console.log(`Installing MPC-MyPC ${VERSION} on "${config.name}"...`);
+    console.log(`Installing MCP-MyPC ${VERSION} on "${config.name}"...`);
     if (!flags['no-apps']) for (const line of setup.registerApps()) console.log(`  ${line}`);
     if (!flags['no-autostart']) console.log(`  ${await setup.installAutostart()}`);
     console.log(`\n${guide(config)}`);
@@ -54,7 +54,7 @@ const commands = {
       if (config.familyCode) return console.log(`"${config.name}" is already in a family. Show its code with: ${MYPC} family code`);
       const fresh = newFamilyCode();
       updateConfig({ familyCode: fresh });
-      console.log(`Created a family. Its code is:\n\n    ${fresh}\n\nSend it to the other person (a text message is fine). On their computer, run:\n    mypc family join ${fresh}\n(or tell their AI: "join my MPC-MyPC family with code ${fresh}").\n\nKeep the code private: anyone who has it can use every computer in the family.`);
+      console.log(`Created a family. Its code is:\n\n    ${fresh}\n\nSend it to the other person (a text message is fine). On their computer, run:\n    mypc family join ${fresh}\n(or tell their AI: "join my MCP-MyPC family with code ${fresh}").\n\nKeep the code private: anyone who has it can use every computer in the family.`);
       return;
     }
     if (action === 'join') {
@@ -94,7 +94,7 @@ const commands = {
     const config = loadConfig();
     const health = await agentHealth();
     console.log([
-      `MPC-MyPC ${VERSION} on "${config.name}"`,
+      `MCP-MyPC ${VERSION} on "${config.name}"`,
       `Background helper: ${health ? `running${health.version !== VERSION ? ` (old version ${health.version}; run "${MYPC} update")` : ''}` : 'NOT running'}`,
       `Family: ${config.familyCode ? (health?.familyConnected ? 'joined, connected' : 'joined') : 'not joined'}`,
       `ChatGPT link: ${config.chatgptToken ? (health?.chatgptConnected ? 'on, connected' : 'on') : 'off'}`,
@@ -116,7 +116,7 @@ const commands = {
         writeFileSync(archive, Buffer.from(await r.arrayBuffer()));
         // tar ships with Windows 10+, macOS and Linux.
         if (spawnSync('tar', ['-xzf', archive, '-C', work], { windowsHide: true }).status !== 0) throw new Error('Could not unpack the update.');
-        swapIn(join(work, 'MPC-MyPC-main'));
+        swapIn(join(work, 'MCP-MyPC-main'));
       } finally {
         rmSync(work, { recursive: true, force: true });
       }
@@ -129,11 +129,11 @@ const commands = {
     setup.unregisterApps();
     await setup.removeAutostart();
     if (flags.purge) rmSync(HOME, { recursive: true, force: true });
-    console.log(`MPC-MyPC is removed from your AI apps and no longer starts by itself.${flags.purge ? '' : ` Its settings are still in ${HOME} (add --purge to delete them).`} You can delete ${ROOT} now.`);
+    console.log(`MCP-MyPC is removed from your AI apps and no longer starts by itself.${flags.purge ? '' : ` Its settings are still in ${HOME} (add --purge to delete them).`} You can delete ${ROOT} now.`);
   },
 
   async help() {
-    console.log(`MPC-MyPC ${VERSION}: let your AI use this computer, and your family's.
+    console.log(`MCP-MyPC ${VERSION}: let your AI use this computer, and your family's.
 
   ${MYPC} install [--name "Mom's PC"]    set up this computer
   ${MYPC} status                         how it is doing, and which family computers are online
@@ -155,7 +155,7 @@ More: ${REPO}`);
  * rename inside ROOT, so the same disk) and put back if anything fails, so a failed update never
  * leaves a half-installed copy. Files the new version no longer has go away with the old version.
  * That is safe because the install folder only ever holds shipped files: there are no dependencies,
- * everything MPC-MyPC keeps (settings, family code, logs) lives in HOME, and a git install updates
+ * everything MCP-MyPC keeps (settings, family code, logs) lives in HOME, and a git install updates
  * with `git pull` instead of coming here.
  */
 function swapIn(fresh) {
@@ -209,7 +209,7 @@ async function showFamily(config) {
 }
 
 function guide(config) {
-  return `Done. MPC-MyPC is set up on "${config.name}".
+  return `Done. MCP-MyPC is set up on "${config.name}".
 
 Claude desktop app: quit Claude completely (Windows: right-click the Claude icon next to the clock > Quit; Mac: Claude menu > Quit Claude), then open it again. Ask it: "Take a screenshot of my computer".
 Claude Code: works in new chats.

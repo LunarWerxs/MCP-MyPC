@@ -9,9 +9,9 @@ export const CLI = join(ROOT, 'bin', 'mypc.mjs');
 export const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
 
 // The shared relay. Anyone can run their own (see relay/) and point at it with `mypc install --relay <url>`.
-export const DEFAULT_RELAY = 'https://mpc-mypc-relay.lunawerx.workers.dev';
+export const DEFAULT_RELAY = 'https://mcp-mypc-relay.lunawerx.workers.dev';
 
-export const HOME = process.env.MYPC_HOME || join(homedir(), '.mpc-mypc');
+export const HOME = process.env.MYPC_HOME || join(homedir(), '.mcp-mypc');
 export const PATHS = {
   config: join(HOME, 'config.json'),
   activity: join(HOME, 'remote-activity.log'),

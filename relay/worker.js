@@ -1,4 +1,4 @@
-// MPC-MyPC relay: a Cloudflare Worker that only passes messages along.
+// MCP-MyPC relay: a Cloudflare Worker that only passes messages along.
 //
 // /room/<id>           Family room. Every computer in a family holds one WebSocket here and every
 //                      binary message is forwarded to the others. Messages are end-to-end encrypted
@@ -26,7 +26,7 @@ export default {
       return env.LINKS.get(env.LINKS.idFromName(await sha256(id))).fetch(request);
     }
     if (url.pathname === '/') {
-      return new Response('MPC-MyPC relay. It only passes messages along: https://github.com/LunarWerxs/MPC-MyPC\n', {
+      return new Response('MCP-MyPC relay. It only passes messages along: https://github.com/LunarWerxs/MCP-MyPC\n', {
         headers: { 'content-type': 'text/plain; charset=utf-8' },
       });
     }

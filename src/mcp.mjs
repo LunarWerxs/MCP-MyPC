@@ -12,7 +12,7 @@ export function createMcpServer({ listTools, callTool, instructions }) {
         return {
           protocolVersion: PROTOCOLS.includes(params.protocolVersion) ? params.protocolVersion : PROTOCOLS[0],
           capabilities: { tools: {} },
-          serverInfo: { name: 'mpc-mypc', title: 'MPC-MyPC', version: VERSION },
+          serverInfo: { name: 'mcp-mypc', title: 'MCP-MyPC', version: VERSION },
           instructions: instructions(),
         };
       case 'ping':

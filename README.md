@@ -1,4 +1,4 @@
-# MPC-MyPC
+# MCP-MyPC
 
 Let your AI (Claude or ChatGPT) use your computer, and the computers of family members you pair with,
 with nothing else to install. Ask things like *"why is my computer slow?"*, *"find the PDF I downloaded
@@ -17,7 +17,7 @@ yesterday"* or *"check what's on Mom's screen"*.
 Open an AI that can run commands on your computer: the **Code** tab in the Claude desktop app,
 Claude Code, or Codex. Paste this:
 
-> Install MPC-MyPC from https://github.com/LunarWerxs/MPC-MyPC on this computer. Follow the
+> Install MCP-MyPC from https://github.com/LunarWerxs/MCP-MyPC on this computer. Follow the
 > "For the AI doing the install" steps in its README. Call this computer "Mom's PC".
 
 When it finishes, it tells you how to switch it on in Claude or ChatGPT. That takes about a minute.
@@ -35,22 +35,22 @@ has not named.
      LTS package from https://nodejs.org, and wait until they have.
    - Linux: the distribution's `nodejs` package if it is 22 or newer, otherwise https://nodejs.org.
 2. **Get the code** into the home folder. There is nothing to build and no `npm install`.
-   - With git: `git clone https://github.com/LunarWerxs/MPC-MyPC "$HOME/MPC-MyPC"`
+   - With git: `git clone https://github.com/LunarWerxs/MCP-MyPC "$HOME/MCP-MyPC"`
    - Without git, on Windows (PowerShell):
-     `Invoke-WebRequest https://github.com/LunarWerxs/MPC-MyPC/archive/refs/heads/main.zip -OutFile "$env:TEMP\mypc.zip"; Expand-Archive "$env:TEMP\mypc.zip" $HOME -Force; Rename-Item "$HOME\MPC-MyPC-main" MPC-MyPC`
+     `Invoke-WebRequest https://github.com/LunarWerxs/MCP-MyPC/archive/refs/heads/main.zip -OutFile "$env:TEMP\mypc.zip"; Expand-Archive "$env:TEMP\mypc.zip" $HOME -Force; Rename-Item "$HOME\MCP-MyPC-main" MCP-MyPC`
    - Without git, on macOS or Linux:
-     `curl -L https://github.com/LunarWerxs/MPC-MyPC/archive/refs/heads/main.tar.gz | tar -xz -C "$HOME" && mv "$HOME/MPC-MyPC-main" "$HOME/MPC-MyPC"`
-3. **Install:** `node "$HOME/MPC-MyPC/bin/mypc.mjs" install --name "<the name the person chose>"`.
-   This adds MPC-MyPC to the Claude desktop app, Claude Code and Codex (whichever are present), and
+     `curl -L https://github.com/LunarWerxs/MCP-MyPC/archive/refs/heads/main.tar.gz | tar -xz -C "$HOME" && mv "$HOME/MCP-MyPC-main" "$HOME/MCP-MyPC"`
+3. **Install:** `node "$HOME/MCP-MyPC/bin/mypc.mjs" install --name "<the name the person chose>"`.
+   This adds MCP-MyPC to the Claude desktop app, Claude Code and Codex (whichever are present), and
    starts a small background helper that also starts at every sign-in, so family computers and
    ChatGPT can reach this one.
 4. **Tell the person** what the install printed, in two or three short sentences. The usual next step
    is to quit the Claude desktop app completely and open it again.
 5. **Family** (skip this if they only want their own computer):
-   - They have a code from another family member: `node "$HOME/MPC-MyPC/bin/mypc.mjs" family join <code>`
-   - They are the first: `node "$HOME/MPC-MyPC/bin/mypc.mjs" family create`, then tell them to send
+   - They have a code from another family member: `node "$HOME/MCP-MyPC/bin/mypc.mjs" family join <code>`
+   - They are the first: `node "$HOME/MCP-MyPC/bin/mypc.mjs" family create`, then tell them to send
      the code privately (a text message is fine) to the family member who should join.
-6. **ChatGPT** (only if they use ChatGPT itself, not Codex): `node "$HOME/MPC-MyPC/bin/mypc.mjs" chatgpt on`,
+6. **ChatGPT** (only if they use ChatGPT itself, not Codex): `node "$HOME/MCP-MyPC/bin/mypc.mjs" chatgpt on`,
    then walk them through the three steps it prints. ChatGPT needs a Plus or Pro plan for this.
 
 ## What the AI can do
@@ -80,7 +80,7 @@ the relay, so family computers can reach it wherever it is, with no network setu
 - **What the relay sees:** which family a message belongs to (a hash of the code), when it was sent,
   and how big it is. Not what it says. It cannot make a family computer do anything.
 - **Seeing what happened:** every action another computer takes is logged on the computer it happened
-  on. Ask the AI for `remote_activity`, or open `~/.mpc-mypc/remote-activity.log`.
+  on. Ask the AI for `remote_activity`, or open `~/.mcp-mypc/remote-activity.log`.
 - **Leaving:** `mypc family leave`. To lock out someone who has the code, make a new family
   (`family leave`, then `family create`) and share the new code only with the people who should have it.
 
@@ -93,12 +93,12 @@ afterwards makes a new one.
 
 Unlike family traffic, the ChatGPT link is **not** end-to-end encrypted. ChatGPT talks to the
 relay over normal HTTPS, so whoever runs the relay could in principle see that traffic. If that
-matters, use the Claude desktop app or Codex (they run MPC-MyPC directly and never use the link), or
+matters, use the Claude desktop app or Codex (they run MCP-MyPC directly and never use the link), or
 run your own relay.
 
 ## Everyday commands
 
-`mypc` below means `node "$HOME/MPC-MyPC/bin/mypc.mjs"`. Or just ask the AI to do it.
+`mypc` below means `node "$HOME/MCP-MyPC/bin/mypc.mjs"`. Or just ask the AI to do it.
 
 | Command | |
 | --- | --- |
@@ -134,7 +134,7 @@ ChatGPT ──HTTPS── relay link ─────┘                         
 - `src/tools/`: one file per kind of tool; `index.mjs` sends a call to another computer when `computer` names one
 - `src/family.mjs`: family codes, encryption, and asking other computers
 - `src/agent.mjs`: the background helper
-- `src/setup.mjs`: start at sign-in, and adding MPC-MyPC to the AI apps
+- `src/setup.mjs`: start at sign-in, and adding MCP-MyPC to the AI apps
 - `relay/`: the Cloudflare Worker
 
 No dependencies. Tests: `npm test`.

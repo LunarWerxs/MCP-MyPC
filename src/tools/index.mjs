@@ -19,7 +19,7 @@ const remoteActivity = {
     try { log = readFileSync(PATHS.activity, 'utf8'); } catch {}
     const lines = log.trim().split('\n').filter(Boolean);
     const count = Math.max(1, Math.floor(Number(entries) || 50));
-    return text(lines.length ? lines.slice(-count).join('\n') : 'Nobody else has used this computer through MPC-MyPC.');
+    return text(lines.length ? lines.slice(-count).join('\n') : 'Nobody else has used this computer through MCP-MyPC.');
   },
 };
 

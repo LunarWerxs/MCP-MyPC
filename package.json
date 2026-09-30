@@ -1,5 +1,5 @@
 {
-  "name": "mpc-mypc",
+  "name": "mcp-mypc",
   "version": "0.1.0",
   "description": "Let your AI (Claude or ChatGPT) use your computer, and your family's computers, with nothing else to install.",
   "type": "module",
@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/LunarWerxs/MPC-MyPC.git"
+    "url": "https://github.com/LunarWerxs/MCP-MyPC.git"
   },
   "license": "MIT"
 }

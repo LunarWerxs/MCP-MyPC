@@ -50,7 +50,7 @@ export async function runAgent() {
   healthServer.on('request', (req, res) => {
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({
-      product: 'mpc-mypc', pid: process.pid, version: VERSION, name: config.name,
+      product: 'mcp-mypc', pid: process.pid, version: VERSION, name: config.name,
       family: Boolean(family), familyConnected: Boolean(family?.connected),
       chatgpt: Boolean(chatgpt), chatgptConnected: Boolean(chatgpt?.isOpen),
     }));
@@ -93,7 +93,7 @@ export async function agentHealth() {
   try {
     const r = await fetch(`http://127.0.0.1:${AGENT_PORT}/`, { signal: AbortSignal.timeout(2000) });
     const health = await r.json();
-    return health?.product === 'mpc-mypc' ? health : null;
+    return health?.product === 'mcp-mypc' ? health : null;
   } catch {
     return null;
   }

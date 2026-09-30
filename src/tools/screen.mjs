@@ -48,7 +48,7 @@ async function capture(out) {
   }
   if (process.platform === 'darwin') {
     await run('screencapture', ['-x', '-t', 'jpg', out],
-      'Could not take a screenshot. On a Mac, allow it once in System Settings > Privacy & Security > Screen Recording (turn on the app that runs MPC-MyPC, for example Claude or Terminal).');
+      'Could not take a screenshot. On a Mac, allow it once in System Settings > Privacy & Security > Screen Recording (turn on the app that runs MCP-MyPC, for example Claude or Terminal).');
     await run('sips', ['-Z', String(MAX_WIDTH), out], 'Could not shrink the screenshot.');
     return;
   }

@@ -9,7 +9,7 @@ import { errorResult, sleep } from './util.mjs';
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford base32: no I, L, O or U to misread
 const CODE_BYTES = 20;
-const AAD = Buffer.from('mpc-mypc v1');
+const AAD = Buffer.from('mcp-mypc v1');
 const MAX_CLOCK_SKEW_MS = 10 * 60_000;
 const ACK_TIMEOUT_MS = 8000;
 

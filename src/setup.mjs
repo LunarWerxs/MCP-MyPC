@@ -1,4 +1,4 @@
-// Installing: start the background helper at sign-in, and tell the AI apps on this computer about MPC-MyPC.
+// Installing: start the background helper at sign-in, and tell the AI apps on this computer about MCP-MyPC.
 import { spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
@@ -10,16 +10,16 @@ import { isWindows, sleep } from './util.mjs';
 const NODE = process.execPath;
 const SERVER_KEY = 'mypc';
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
-const MAC_LABEL = 'com.lunarwerxs.mpc-mypc';
+const MAC_LABEL = 'com.lunarwerxs.mcp-mypc';
 const MAC_PLIST = join(homedir(), 'Library', 'LaunchAgents', `${MAC_LABEL}.plist`);
-const LINUX_UNIT = join(homedir(), '.config', 'systemd', 'user', 'mpc-mypc.service');
+const LINUX_UNIT = join(homedir(), '.config', 'systemd', 'user', 'mcp-mypc.service');
 
 /** Start the helper at every sign-in, and now. Returns a line describing what happened. */
 export async function installAutostart() {
   if (isWindows) {
     const conhost = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'conhost.exe');
     const command = `"${conhost}" --headless "${NODE}" "${CLI}" agent`;
-    const r = spawnSync('reg', ['add', RUN_KEY, '/v', 'MPC-MyPC', '/t', 'REG_SZ', '/d', command, '/f'], { windowsHide: true });
+    const r = spawnSync('reg', ['add', RUN_KEY, '/v', 'MCP-MyPC', '/t', 'REG_SZ', '/d', command, '/f'], { windowsHide: true });
     await restartAgent();
     return r.status === 0 ? 'The background helper starts whenever you sign in to Windows.' : 'Could not set the helper to start at sign-in; it is running for now.';
   }
@@ -51,7 +51,7 @@ export async function installAutostart() {
   const systemdPath = (p) => p.replace(/%/g, '%%');
   mkdirSync(dirname(LINUX_UNIT), { recursive: true });
   writeFileSync(LINUX_UNIT, `[Unit]
-Description=MPC-MyPC background helper
+Description=MCP-MyPC background helper
 After=network-online.target
 
 [Service]
@@ -63,7 +63,7 @@ RestartSec=5
 WantedBy=default.target
 `);
   spawnSync('systemctl', ['--user', 'daemon-reload']);
-  if (spawnSync('systemctl', ['--user', 'enable', 'mpc-mypc.service']).status === 0) {
+  if (spawnSync('systemctl', ['--user', 'enable', 'mcp-mypc.service']).status === 0) {
     await restartAgent();
     return 'The background helper starts whenever you log in.';
   }
@@ -78,12 +78,12 @@ async function waitForAgent() {
 }
 
 export async function removeAutostart() {
-  if (isWindows) spawnSync('reg', ['delete', RUN_KEY, '/v', 'MPC-MyPC', '/f'], { windowsHide: true, stdio: 'ignore' });
+  if (isWindows) spawnSync('reg', ['delete', RUN_KEY, '/v', 'MCP-MyPC', '/f'], { windowsHide: true, stdio: 'ignore' });
   else if (process.platform === 'darwin') {
     spawnSync('launchctl', ['bootout', MAC_SERVICE()]);
     rmSync(MAC_PLIST, { force: true });
   } else {
-    spawnSync('systemctl', ['--user', 'disable', '--now', 'mpc-mypc.service']);
+    spawnSync('systemctl', ['--user', 'disable', '--now', 'mcp-mypc.service']);
     rmSync(LINUX_UNIT, { force: true });
   }
   await stopAgent();
@@ -101,7 +101,7 @@ export async function restartAgent() {
   const managed = (process.platform === 'darwin' && existsSync(MAC_PLIST)
       && spawnSync('launchctl', ['kickstart', '-k', MAC_SERVICE()]).status === 0)
     || (process.platform === 'linux' && existsSync(LINUX_UNIT)
-      && spawnSync('systemctl', ['--user', 'restart', 'mpc-mypc.service']).status === 0);
+      && spawnSync('systemctl', ['--user', 'restart', 'mcp-mypc.service']).status === 0);
   if (!managed) {
     await stopAgent();
     spawn(NODE, [CLI, 'agent'], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
@@ -168,7 +168,7 @@ function codexWithoutUs() {
   return { rest, eol };
 }
 
-/** Add MPC-MyPC to every AI app found on this computer. Returns one line per app. */
+/** Add MCP-MyPC to every AI app found on this computer. Returns one line per app. */
 export function registerApps() {
   const done = [];
   const entry = { command: NODE, args: [CLI, 'stdio'] };
