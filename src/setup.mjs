@@ -1,0 +1,182 @@
+// Installing: start the background helper at sign-in, and tell the AI apps on this computer about MPC-MyPC.
+import { spawn, spawnSync } from 'node:child_process';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, userInfo } from 'node:os';
+import { dirname, join } from 'node:path';
+import { CLI, HOME } from './config.mjs';
+import { agentHealth } from './agent.mjs';
+import { isWindows, sleep } from './util.mjs';
+
+const NODE = process.execPath;
+const SERVER_KEY = 'mypc';
+const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+const MAC_LABEL = 'com.lunarwerxs.mpc-mypc';
+const MAC_PLIST = join(homedir(), 'Library', 'LaunchAgents', `${MAC_LABEL}.plist`);
+const LINUX_UNIT = join(homedir(), '.config', 'systemd', 'user', 'mpc-mypc.service');
+
+/** Start the helper at every sign-in, and now. Returns a line describing what happened. */
+export async function installAutostart() {
+  if (isWindows) {
+    const conhost = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'conhost.exe');
+    const command = `"${conhost}" --headless "${NODE}" "${CLI}" agent`;
+    const r = spawnSync('reg', ['add', RUN_KEY, '/v', 'MPC-MyPC', '/t', 'REG_SZ', '/d', command, '/f'], { windowsHide: true });
+    await restartAgent();
+    return r.status === 0 ? 'The background helper starts whenever you sign in to Windows.' : 'Could not set the helper to start at sign-in; it is running for now.';
+  }
+  if (process.platform === 'darwin') {
+    mkdirSync(dirname(MAC_PLIST), { recursive: true });
+    const xml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    writeFileSync(MAC_PLIST, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${MAC_LABEL}</string>
+  <key>ProgramArguments</key><array><string>${xml(NODE)}</string><string>${xml(CLI)}</string><string>agent</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>StandardErrorPath</key><string>${xml(join(HOME, 'agent-errors.log'))}</string>
+</dict></plist>
+`);
+    const domain = `gui/${userInfo().uid}`;
+    spawnSync('launchctl', ['bootout', `${domain}/${MAC_LABEL}`]);
+    const r = spawnSync('launchctl', ['bootstrap', domain, MAC_PLIST]);
+    if (r.status === 0) return 'The background helper starts whenever you log in to this Mac.';
+    await restartAgent();
+    return 'Could not set the helper to start at login; it is running for now.';
+  }
+  mkdirSync(dirname(LINUX_UNIT), { recursive: true });
+  writeFileSync(LINUX_UNIT, `[Unit]
+Description=MPC-MyPC background helper
+After=network-online.target
+
+[Service]
+ExecStart="${NODE}" "${CLI}" agent
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+`);
+  spawnSync('systemctl', ['--user', 'daemon-reload']);
+  const r = spawnSync('systemctl', ['--user', 'enable', '--now', 'mpc-mypc.service']);
+  if (r.status === 0) return 'The background helper starts whenever you log in.';
+  await restartAgent();
+  return 'Could not set the helper to start at login (no systemd); it is running for now.';
+}
+
+export async function removeAutostart() {
+  if (isWindows) spawnSync('reg', ['delete', RUN_KEY, '/v', 'MPC-MyPC', '/f'], { windowsHide: true, stdio: 'ignore' });
+  else if (process.platform === 'darwin') {
+    spawnSync('launchctl', ['bootout', `gui/${userInfo().uid}/${MAC_LABEL}`]);
+    rmSync(MAC_PLIST, { force: true });
+  } else {
+    spawnSync('systemctl', ['--user', 'disable', '--now', 'mpc-mypc.service']);
+    rmSync(LINUX_UNIT, { force: true });
+  }
+  await stopAgent();
+}
+
+export async function stopAgent() {
+  const health = await agentHealth();
+  if (!health) return;
+  try { process.kill(health.pid); } catch {}
+  for (let i = 0; i < 20 && (await agentHealth()); i++) await sleep(150);
+}
+
+/** Restart the helper so it runs the current code (after install or update). */
+export async function restartAgent() {
+  await stopAgent();
+  // On a Mac or Linux the service manager brings it back by itself.
+  if (!isWindows && (existsSync(MAC_PLIST) || existsSync(LINUX_UNIT))) {
+    for (let i = 0; i < 40 && !(await agentHealth()); i++) await sleep(250);
+    if (await agentHealth()) return;
+  }
+  spawn(NODE, [CLI, 'agent'], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  for (let i = 0; i < 40 && !(await agentHealth()); i++) await sleep(250);
+}
+
+function claudeDesktopConfigDirs() {
+  if (process.platform === 'darwin') return [join(homedir(), 'Library', 'Application Support', 'Claude')];
+  if (!isWindows) return [join(homedir(), '.config', 'Claude')];
+  const dirs = [join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'Claude')];
+  // The Microsoft Store build of Claude keeps its settings inside its package folder.
+  const packages = join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'Packages');
+  try {
+    for (const name of readdirSync(packages)) {
+      if (name.startsWith('Claude_')) dirs.push(join(packages, name, 'LocalCache', 'Roaming', 'Claude'));
+    }
+  } catch {}
+  const existing = dirs.filter((d) => existsSync(d));
+  return existing.length ? existing : dirs.slice(0, 1);
+}
+
+function editJson(file, change) {
+  let data = {};
+  if (existsSync(file)) {
+    try { data = JSON.parse(readFileSync(file, 'utf8')); } catch { return false; }
+    if (!existsSync(`${file}.before-mypc`)) copyFileSync(file, `${file}.before-mypc`);
+  }
+  change(data);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+  return true;
+}
+
+/** Full path of a program on PATH, or null. */
+function which(program) {
+  const r = isWindows
+    ? spawnSync('where', [program], { encoding: 'utf8', windowsHide: true })
+    : spawnSync('sh', ['-c', `command -v ${program}`], { encoding: 'utf8' });
+  return r.status === 0 ? r.stdout.split(/\r?\n/)[0].trim() || null : null;
+}
+
+function runProgram(path, args) {
+  // A .cmd script (npm installs) only runs through the shell, so quote every argument for it.
+  if (/\.(cmd|bat)$/i.test(path)) return spawnSync(`"${path}"`, args.map((a) => `"${a}"`), { shell: true, windowsHide: true, stdio: 'ignore' });
+  return spawnSync(path, args, { windowsHide: true, stdio: 'ignore' });
+}
+
+const CODEX_CONFIG = join(homedir(), '.codex', 'config.toml');
+
+/** Codex's settings with our [mcp_servers.mypc] table (and any sub-tables) taken out. */
+function codexWithoutUs() {
+  if (!existsSync(CODEX_CONFIG)) return '';
+  let ours = false;
+  return readFileSync(CODEX_CONFIG, 'utf8').split(/\r?\n/).filter((line) => {
+    if (/^\s*\[/.test(line)) ours = /^\s*\[mcp_servers\.mypc[.\]]/.test(line);
+    return !ours;
+  }).join('\n').trimEnd();
+}
+
+/** Add MPC-MyPC to every AI app found on this computer. Returns one line per app. */
+export function registerApps() {
+  const done = [];
+  const entry = { command: NODE, args: [CLI, 'stdio'] };
+  for (const dir of claudeDesktopConfigDirs()) {
+    const ok = editJson(join(dir, 'claude_desktop_config.json'), (c) => { c.mcpServers = { ...c.mcpServers, [SERVER_KEY]: entry }; });
+    done.push(ok ? 'Claude desktop app: added.' : `Claude desktop app: its settings file in ${dir} could not be read, so it was left alone.`);
+  }
+  const claude = which('claude');
+  if (claude) {
+    runProgram(claude, ['mcp', 'remove', '--scope', 'user', SERVER_KEY]);
+    const r = runProgram(claude, ['mcp', 'add', '--scope', 'user', SERVER_KEY, '--', NODE, CLI, 'stdio']);
+    done.push(r.status === 0 ? 'Claude Code: added.' : 'Claude Code: could not add it automatically.');
+  }
+  if (existsSync(dirname(CODEX_CONFIG))) {
+    // A JSON string is also a valid TOML string, escapes included.
+    const table = `[mcp_servers.mypc]\ncommand = ${JSON.stringify(NODE)}\nargs = [${JSON.stringify(CLI)}, "stdio"]\n`;
+    const rest = codexWithoutUs();
+    writeFileSync(CODEX_CONFIG, rest ? `${rest}\n\n${table}` : table);
+    done.push('Codex (ChatGPT\'s coding app): added.');
+  }
+  return done;
+}
+
+export function unregisterApps() {
+  for (const dir of claudeDesktopConfigDirs()) {
+    const file = join(dir, 'claude_desktop_config.json');
+    if (existsSync(file)) editJson(file, (c) => { if (c.mcpServers) delete c.mcpServers[SERVER_KEY]; });
+  }
+  const claude = which('claude');
+  if (claude) runProgram(claude, ['mcp', 'remove', '--scope', 'user', SERVER_KEY]);
+  if (existsSync(CODEX_CONFIG)) writeFileSync(CODEX_CONFIG, `${codexWithoutUs()}\n`);
+}

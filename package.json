@@ -1,0 +1,20 @@
+{
+  "name": "mpc-mypc",
+  "version": "0.1.0",
+  "description": "Let your AI (Claude or ChatGPT) use your computer, and your family's computers, with nothing else to install.",
+  "type": "module",
+  "bin": {
+    "mypc": "bin/mypc.mjs"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LunarWerxs/MPC-MyPC.git"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,22 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - name: The server starts and lists its tools
+        shell: bash
+        env:
+          MYPC_HOME: ${{ runner.temp }}/mypc
+        run: echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node bin/mypc.mjs stdio | grep -q '"run_command"'
