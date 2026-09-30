@@ -4,8 +4,9 @@
 
 ### Added
 
-- Your AI can use your computer: run commands, read and save files, list folders, take screenshots,
-  drive a separate browser window, show system information, and open websites and files.
+- Your AI can use your computer: find files by name, run commands, read and save files, list
+  folders, take screenshots, drive a separate browser window, show system information, and open
+  websites and files. Each tool tells the AI app whether it only reads or can change things.
 - Family computers: pair computers with a family code, and the AI can do all of that on any of them
   that are switched on, through an end-to-end encrypted relay, with no network setup.
 - A ChatGPT link (`mypc chatgpt on`) so ChatGPT, which only connects to public web addresses, can use

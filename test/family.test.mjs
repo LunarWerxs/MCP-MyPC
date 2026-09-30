@@ -7,6 +7,7 @@ test('a family code retyped loosely still opens the same family', () => {
   const retyped = code.toLowerCase().replace(/-/g, ' ').replace(/0/g, 'o').replace(/1/g, 'l');
   assert.deepEqual(familyKeys(retyped), familyKeys(code));
   assert.throws(() => parseFamilyCode('MYPC-1234'), /does not look right/);
+  assert.throws(() => parseFamilyCode('mypc 7k2q 9xwm 4trd hp3c qj6v a8ne 5bzk 2ygf'), /example code/);
 });
 
 test('only the same family can open a message, and a changed message is refused', () => {

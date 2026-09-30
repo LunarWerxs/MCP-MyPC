@@ -6,6 +6,7 @@ import { errorResult, text } from '../util.mjs';
 import { browser } from './browser.mjs';
 import { listFolder, readFileTool, writeFileTool } from './files.mjs';
 import { screenshot } from './screen.mjs';
+import { findFiles } from './search.mjs';
 import { runCommand } from './shell.mjs';
 import { computerInfo, openTool, systemName } from './system.mjs';
 
@@ -23,8 +24,27 @@ const remoteActivity = {
   },
 };
 
-const LOCAL_TOOLS = [runCommand, readFileTool, writeFileTool, listFolder, screenshot, browser, computerInfo, openTool, remoteActivity];
+const LOCAL_TOOLS = [runCommand, findFiles, readFileTool, writeFileTool, listFolder, screenshot, browser, computerInfo, openTool, remoteActivity];
 const BY_NAME = new Map(LOCAL_TOOLS.map((t) => [t.name, t]));
+
+// The name an AI app shows for each tool, and MCP's hints about what it may change: apps can let a
+// read-only tool run with fewer confirmations. Every tool can act on another computer, so none is closed-world.
+const READ_ONLY = { readOnlyHint: true, openWorldHint: true };
+const CHANGES = { readOnlyHint: false, destructiveHint: true, openWorldHint: true };
+const SHOWS = { readOnlyHint: false, destructiveHint: false, openWorldHint: true };
+const PRESENTATION = {
+  list_computers: ['List family computers', READ_ONLY],
+  run_command: ['Run a command', CHANGES],
+  find_files: ['Find files by name', READ_ONLY],
+  read_file: ['Read a file', READ_ONLY],
+  write_file: ['Save a file', CHANGES],
+  list_folder: ['List a folder', READ_ONLY],
+  screenshot: ['Take a screenshot', READ_ONLY],
+  browser: ['Use a browser window', CHANGES],
+  computer_info: ['Computer info', READ_ONLY],
+  open: ['Open a website, file or folder', SHOWS],
+  remote_activity: ['Remote activity', READ_ONLY],
+};
 
 const COMPUTER = {
   type: 'string',
@@ -54,14 +74,13 @@ export async function runLocal(name, args, from) {
  * when it has not joined a family.
  */
 export function createToolbox({ config, family, caller }) {
-  const listTools = () => [
-    LIST_COMPUTERS,
-    ...LOCAL_TOOLS.map(({ name, description, inputSchema }) => ({
-      name,
-      description,
-      inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, computer: COMPUTER } },
-    })),
-  ];
+  const listTools = () => [LIST_COMPUTERS, ...LOCAL_TOOLS].map(({ name, description, inputSchema }) => ({
+    name,
+    title: PRESENTATION[name][0],
+    description,
+    inputSchema: name === 'list_computers' ? inputSchema : { ...inputSchema, properties: { ...inputSchema.properties, computer: COMPUTER } },
+    annotations: { title: PRESENTATION[name][0], ...PRESENTATION[name][1] },
+  }));
 
   // Who answered the last roll call, so a run of calls to one computer does not wait for a new one each time.
   let rollCall = { at: 0, online: [] };
@@ -99,22 +118,24 @@ export function createToolbox({ config, family, caller }) {
     const link = family();
     if (!link) return errorResult('This computer has not joined a family, so it cannot reach other computers.');
     try {
-      // This computer takes part in the match, so "mom" on Mom's PC never quietly lands on "Mom's laptop".
-      const self = { id: config.deviceId, name: config.name };
-      const choose = (online) => pick([self, ...othersIn(online)], target);
-      let found = choose(await whoIsOnline(link));
-      if (!found.match) found = choose(await whoIsOnline(link, true));
-      if (found.match === self) return runLocal(name, rest, caller);
-      if (!found.match) {
-        const online = othersIn(rollCall.online).map((d) => d.name).join(', ') || 'none';
-        return errorResult(found.ambiguous
-          ? `More than one family computer matches "${target}". Use the full name. Online now: ${online}.`
-          : `No family computer called "${target}" is online. Online now: ${online}.`);
-      }
-      return await link.call(found.match.id, name, rest, BY_NAME.get(name).timeoutMs?.(rest) ?? 90_000);
+      return await callFamily(link, name, rest, target);
     } catch (e) {
       return errorResult(e.message);
     }
+  }
+
+  async function callFamily(link, name, args, target) {
+    // This computer takes part in the match, so "mom" on Mom's PC never quietly lands on "Mom's laptop".
+    const self = { id: config.deviceId, name: config.name };
+    const choose = (online) => pick([self, ...othersIn(online)], target);
+    let found = choose(await whoIsOnline(link));
+    if (!found.match) found = choose(await whoIsOnline(link, true));
+    if (found.match === self) return runLocal(name, args, caller);
+    if (found.match) return link.call(found.match.id, name, args, BY_NAME.get(name).timeoutMs?.(args) ?? 90_000);
+    const online = othersIn(rollCall.online).map((d) => d.name).join(', ') || 'none';
+    return errorResult(found.ambiguous
+      ? `More than one family computer matches "${target}". Use the full name. Online now: ${online}.`
+      : `No family computer called "${target}" is online. Online now: ${online}.`);
   }
 
   function isThisComputer(target) {

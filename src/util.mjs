@@ -17,6 +17,13 @@ export function expandPath(p) {
   return isAbsolute(raw) ? raw : resolve(homedir(), raw);
 }
 
+/** "2026-09-30 14:05" in the computer's own time zone, the way the person at it reads a clock. */
+export function localTime(ms) {
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function formatBytes(n) {
   if (n < 1024) return `${n} B`;
   const units = ['KB', 'MB', 'GB', 'TB'];

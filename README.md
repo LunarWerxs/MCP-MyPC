@@ -33,7 +33,7 @@ MCP-MyPC is a free, open-source MCP server for Windows, macOS and Linux. (MCP is
 ## TL;DR
 
 - 🗣️ **Install by asking.** Paste one short message into the Code tab in the Claude app, Claude Code or Codex, and it sets itself up. No administrator rights for MCP-MyPC itself, nothing to build.
-- 🖐️ **Your AI looks instead of guessing.** It can run commands, read and save files, **see the screen**, and use a browser window you can watch.
+- 🖐️ **Your AI looks instead of guessing.** It can find and read files, run commands, **see the screen**, and use a browser window you can watch.
 - 👪 **Help the family from anywhere.** Pair computers once with a private code, and *"what's on Mom's screen?"* works whenever her computer is on and she is signed in.
 - 🔒 **The family code is a key to every family computer.** Anyone who has it can use them all, so share it only privately. Family messages are end-to-end encrypted with it, and the relay in the middle, a small server that passes messages along, **cannot read, change or fake them**. The optional ChatGPT link is the exception: it works like a password too, and it is **not** end-to-end encrypted ([details](#chatgpt)).
 - 🛑 **You can see it and stop it.** What another computer does on yours is **logged on yours**. `mypc uninstall` cuts off every path at once; `mypc family leave` and `mypc chatgpt off` each cut one. None of them undoes what was already done.
@@ -43,7 +43,7 @@ MCP-MyPC is a free, open-source MCP server for Windows, macOS and Linux. (MCP is
 
 ## 🌱 The story
 
-MCP-MyPC was built for one family. The author wanted his mom and his brother to be able to tell their AI "install this", and then have it help on their own computers and on each other's, without anyone learning what a VPN or a port forward is. So it is made for families, and **the author stays out of it**: he never holds a family's code, and the family's own messages stay sealed as they pass through the shared relay his studio runs. The one exception is the optional ChatGPT link, which that relay carries unsealed ([Is it safe?](#-is-it-safe)).
+MCP-MyPC was built for one family. The author wanted his mom and his brother to be able to tell their AI "install this", and then have it help on their own computers and on each other's, without anyone learning what a VPN or a port forward is. So it is made for families, and **the author stays out of it**: he never holds a family's code, and the family's own messages stay sealed as they pass through the shared relay his studio runs.
 
 ---
 
@@ -104,7 +104,7 @@ ChatGPT can only reach tools at a public web address, so MCP-MyPC gives this com
 3. In a new chat, turn on **MyPC** from the **+** menu and ask: *"Take a screenshot of my computer"*.
 
 > [!WARNING]
-> **The link works like a password, and it is the one path that is not end-to-end encrypted.** Anyone who has it can use this computer and, through it, the family's. ChatGPT talks to the relay over ordinary HTTPS, which ends at the relay, so whoever runs the relay (and Cloudflare, whose servers it runs on) could in principle see that traffic and send requests of its own through the link, which means using this computer and, through it, the family's. That includes reading the family code from this computer's settings, which keeps working after the link is off. `mypc chatgpt off` shuts the link within about 5 seconds, for good, and `mypc chatgpt on` afterwards makes a new one. If the link may have got out, change the family code too ([how](#see-it-and-stop-it)). Claude and Codex never use the link. The computer has to be switched on and signed in for ChatGPT to reach it.
+> **The link works like a password, and it is the one path that is not end-to-end encrypted.** Anyone who has it can use this computer and, through it, the family's. ChatGPT's HTTPS connection ends at the relay, so whoever runs the relay (and Cloudflare, whose servers it runs on) could in principle see that traffic and use the link themselves, including reading the family code from this computer's settings. `mypc chatgpt off` kills the link within about 5 seconds; if it may have got out, [change the family code](#see-it-and-stop-it) too. Claude and Codex never use the link.
 
 ---
 
@@ -142,7 +142,7 @@ MCP-MyPC gives an AI real hands on a real computer, so here is plainly who can u
 - 🔑 **Anyone with the family code can use every family computer**, screen included, and the computer being used does not ask its owner before each action. Give the code only to people you would trust at your unlocked computer.
 - 🙋 **Your AI is told to ask first.** It explains in plain words and asks before deleting files, uninstalling programs, changing settings or anything else hard to undo. That is an instruction to the AI, not a lock on the computer, so guard the family code like a house key.
 - 🔐 **The relay can't read or fake family messages.** The relay passes messages between family computers; the shared one is run by LunarWerx Studios. Every family message is end-to-end encrypted with a key made from your family code, and the code is made on your computer and never sent to the relay. The relay sees only a scrambled room id, how many connections the room has and when (so when each computer is switched on and signed in), which connection sent each message, when it was sent and how big it is, and, like any server, the internet address each computer connects from. A changed, faked or replayed message is thrown away.
-- ⚠️ **The ChatGPT link is the exception.** It is off unless you turn it on, on each computer separately, and its traffic is [not end-to-end encrypted](#chatgpt). Whoever runs the relay (and Cloudflare, whose servers run every relay) could in principle see it and use that computer, and the whole family through it. That includes reading the family code, which keeps working after the link is off. A link turned on at any one family computer opens every family computer this way. Claude and Codex never use it. If that matters to you, keep every link in the family off, or [run your own relay](#-run-your-own-relay), which takes LunarWerx Studios, though not Cloudflare, out of that path.
+- ⚠️ **The ChatGPT link is the exception** ([why](#chatgpt)). It is off unless someone turns it on, and a link on at any one family computer reaches every family computer. If that matters to you, keep every link in the family off, or [run your own relay](#-run-your-own-relay), which takes LunarWerx Studios, though not Cloudflare, out of that path.
 - 📤 **What an AI reads goes to that AI's company** as part of the chat (a screenshot, a file, a command's output), the same as if it had been pasted in. When a family member's AI reads from your computer, it goes to their AI company, in their chat history.
 
 ### See it, and stop it
@@ -168,6 +168,7 @@ These are the tools MCP-MyPC gives your AI ([src/tools/index.mjs](src/tools/inde
 | --- | --- | --- |
 | `list_computers` | See this computer and the family computers online right now, with their systems | No |
 | `run_command` | Run a command: PowerShell on Windows, the login shell on macOS and Linux. It stops after 2 minutes unless asked for longer (up to an hour; through the ChatGPT link the answer has to come back within 4 minutes), along with everything it started. It never waits for typing, and very long output is cut off | No, unless the command starts a program |
+| `find_files` | Find files and folders by name, newest first, in the home folder unless told where, optionally only ones changed in the last few days. Folders of program files (like `node_modules` or `AppData`) and hidden folders are skipped | No |
 | `read_file` | Read a text file, or look at a picture (png, jpg, gif, webp) up to 5 MB. Files over 20 MB are refused | No |
 | `write_file` | Save text to a file, making folders as needed, or add to the end of one | No |
 | `list_folder` | List a folder (the home folder unless told otherwise), folders first, up to 500 entries | No |
@@ -184,7 +185,7 @@ Every tool except `list_computers` also takes a `computer`: a family computer's 
 ## ❓ FAQ
 
 **Can the people who make this get into my computer?**
-Not through the family: getting in takes your family code or a ChatGPT link. The family code is made on your computer, and MCP-MyPC never sends it to the relay (which LunarWerx Studios runs) or to LunarWerx Studios. A ChatGPT link is different. While any computer in the family has one on, whoever runs the relay could in principle see its traffic and use that computer, and the family's through it. That includes reading the family code, which keeps working after the link is off. So if a ChatGPT link was ever on, change the family code after turning it off, and to keep LunarWerx Studios out of that path altogether, [run your own relay](#-run-your-own-relay). Nothing updates by itself: new code arrives only when someone runs `mypc update`, and it is whatever is in this public repository at that moment. [Is it safe?](#-is-it-safe) has the details.
+Not through the family: getting in takes your family code, which is made on your computer and never sent to the relay or to LunarWerx Studios. The one exception is a [ChatGPT link](#chatgpt) that is on somewhere in the family, since that traffic passes through the relay unsealed; [run your own relay](#-run-your-own-relay) to take LunarWerx Studios out of that path. Nothing updates by itself: new code arrives only when someone runs `mypc update`, and it is whatever is in this public repository at that moment.
 
 **What does it cost?**
 Nothing. MCP-MyPC is free and open source (MIT), with no sign-up, and the shared relay costs you nothing. You use the AI app you already have. Adding it to ChatGPT needs a Plus or Pro plan.
@@ -335,7 +336,7 @@ No dependencies, so there is nothing to `npm install`. CI runs `npm test` on Ubu
 
 ## 📡 Run your own relay
 
-The shared relay, `https://mcp-mypc-relay.lunawerx.workers.dev`, is run by LunarWerx Studios. It can't read family traffic, but you don't have to rely on it, and running your own matters most if you use the ChatGPT link: it takes LunarWerx Studios out of that link's path (Cloudflare, whose servers run the relay, stays in it). The relay is one small file ([relay/worker.js](relay/worker.js), about 130 lines) that runs on Cloudflare's free plan. With a Cloudflare account, from the MCP-MyPC folder:
+The shared relay, `https://mcp-mypc-relay.lunawerx.workers.dev`, is run by LunarWerx Studios. It can't read family traffic, but you don't have to rely on it, and your own matters most if you use the [ChatGPT link](#chatgpt). The relay is one small file ([relay/worker.js](relay/worker.js), about 130 lines) that runs on Cloudflare's free plan. With a Cloudflare account, from the MCP-MyPC folder:
 
 ```bash
 cd relay

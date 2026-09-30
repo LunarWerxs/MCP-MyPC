@@ -9,6 +9,7 @@ import { errorResult, sleep } from './util.mjs';
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford base32: no I, L, O or U to misread
 const CODE_BYTES = 20;
+const EXAMPLE_CODE = '7K2Q9XWM4TRDHP3CQJ6VA8NE5BZK2YGF';
 const AAD = Buffer.from('mcp-mypc v1');
 const MAX_CLOCK_SKEW_MS = 10 * 60_000;
 const ACK_TIMEOUT_MS = 8000;
@@ -51,6 +52,10 @@ export function parseFamilyCode(input) {
   body = body.replace(/O/g, '0').replace(/[IL]/g, '1');
   if (!/^[0-9A-HJKMNP-TV-Z]{32}$/.test(body)) {
     throw new Error('That family code does not look right. It is MYPC- followed by 32 letters and numbers.');
+  }
+  // The code shown in the README's demo is well formed, so everyone who pasted it would share one family.
+  if (body === EXAMPLE_CODE) {
+    throw new Error('That is the example code from the MCP-MyPC README, not a real one. Use the code your family member sent you, or run "mypc family create".');
   }
   const bytes = [];
   let bits = 0;

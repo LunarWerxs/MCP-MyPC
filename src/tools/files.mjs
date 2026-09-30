@@ -1,6 +1,6 @@
 import { appendFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
-import { expandPath, formatBytes, image, text } from '../util.mjs';
+import { expandPath, formatBytes, image, localTime, text } from '../util.mjs';
 
 const IMAGE_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' };
 const MAX_READ_BYTES = 20 * 1024 * 1024;
@@ -70,7 +70,7 @@ export const listFolder = {
     const lines = await Promise.all(entries.slice(0, MAX_LIST).map(async (e) => {
       if (e.isDirectory()) return `[folder] ${e.name}`;
       const info = await stat(join(path, e.name)).catch(() => null);
-      return info ? `${e.name}  (${formatBytes(info.size)}, changed ${info.mtime.toISOString().slice(0, 10)})` : e.name;
+      return info ? `${e.name}  (${formatBytes(info.size)}, changed ${localTime(info.mtimeMs)})` : e.name;
     }));
     if (entries.length > MAX_LIST) lines.push(`... and ${entries.length - MAX_LIST} more.`);
     return text(`${path}\n${lines.join('\n') || '(empty)'}`);
