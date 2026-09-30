@@ -15,7 +15,8 @@ const { FamilyLink, newFamilyCode, parseFamilyCode } = await import('../src/fami
 const { agentHealth, device, runAgent } = await import('../src/agent.mjs');
 const setup = await import('../src/setup.mjs');
 
-const MYPC = `node "${CLI}"`;
+/** How to type this command here: plain `mypc` once the launcher is on PATH, else the full node line. */
+const mypc = () => (setup.launcherOnPath() ? 'mypc' : `node "${CLI}"`);
 const REPO = 'https://github.com/LunarWerxs/MCP-MyPC';
 const [command, ...rest] = process.argv.slice(2);
 const flags = parseFlags(rest);
@@ -28,6 +29,7 @@ const commands = {
     const config = updateConfig({ name: flags.name ?? loadConfig().name, ...(flags.relay && { relay: flags.relay }) });
     console.log(`Installing MCP-MyPC ${VERSION} on "${config.name}"...`);
     if (!flags['no-apps']) for (const line of setup.registerApps()) console.log(`  ${line}`);
+    if (!flags['no-command']) console.log(`  ${setup.installLauncher()}`);
     if (!flags['no-autostart']) console.log(`  ${await setup.installAutostart()}`);
     console.log(`\n${guide(config)}`);
   },
@@ -51,7 +53,7 @@ const commands = {
     const [action, code] = flags._;
     const config = loadConfig();
     if (action === 'create') {
-      if (config.familyCode) return console.log(`"${config.name}" is already in a family. Show its code with: ${MYPC} family code`);
+      if (config.familyCode) return console.log(`"${config.name}" is already in a family. Show its code with: ${mypc()} family code`);
       const fresh = newFamilyCode();
       updateConfig({ familyCode: fresh });
       console.log(`Created a family. Its code is:\n\n    ${fresh}\n\nSend it to the other person (a text message is fine). On their computer, run:\n    mypc family join ${fresh}\n(or tell their AI: "join my MCP-MyPC family with code ${fresh}").\n\nKeep the code private: anyone who has it can use every computer in the family.`);
@@ -68,7 +70,7 @@ const commands = {
       updateConfig({ familyCode: null });
       return console.log(`"${config.name}" left the family. The others can no longer reach it.`);
     }
-    console.log(`Usage: ${MYPC} family create | join <code> | code | leave`);
+    console.log(`Usage: ${mypc()} family create | join <code> | code | leave`);
   },
 
   async chatgpt() {
@@ -78,14 +80,14 @@ const commands = {
       updateConfig({ chatgptToken: null });
       return console.log('ChatGPT link is off. The old link no longer works.');
     }
-    if (action !== 'on') return console.log(`Usage: ${MYPC} chatgpt on | off`);
+    if (action !== 'on') return console.log(`Usage: ${mypc()} chatgpt on | off`);
     if (!config.chatgptToken) config = updateConfig({ chatgptToken: randomBytes(32).toString('base64url') });
     console.log(chatgptGuide(config));
   },
 
   async rename() {
     const name = flags._.join(' ').trim();
-    if (!name) return console.log(`Usage: ${MYPC} rename "Mom's PC"`);
+    if (!name) return console.log(`Usage: ${mypc()} rename "Mom's PC"`);
     updateConfig({ name });
     console.log(`This computer is now called "${name}".`);
   },
@@ -95,7 +97,7 @@ const commands = {
     const health = await agentHealth();
     console.log([
       `MCP-MyPC ${VERSION} on "${config.name}"`,
-      `Background helper: ${health ? `running${health.version !== VERSION ? ` (old version ${health.version}; run "${MYPC} update")` : ''}` : 'NOT running'}`,
+      `Background helper: ${health ? `running${health.version !== VERSION ? ` (old version ${health.version}; run "${mypc()} update")` : ''}` : 'NOT running'}`,
       `Family: ${config.familyCode ? (health?.familyConnected ? 'joined, connected' : 'joined') : 'not joined'}`,
       `ChatGPT link: ${config.chatgptToken ? (health?.chatgptConnected ? 'on, connected' : 'on') : 'off'}`,
       `Settings folder: ${HOME}`,
@@ -127,6 +129,7 @@ const commands = {
 
   async uninstall() {
     setup.unregisterApps();
+    setup.removeLauncher();
     await setup.removeAutostart();
     if (flags.purge) rmSync(HOME, { recursive: true, force: true });
     console.log(`MCP-MyPC is removed from your AI apps and no longer starts by itself.${flags.purge ? '' : ` Its settings are still in ${HOME} (add --purge to delete them).`} You can delete ${ROOT} now.`);
@@ -135,15 +138,15 @@ const commands = {
   async help() {
     console.log(`MCP-MyPC ${VERSION}: let your AI use this computer, and your family's.
 
-  ${MYPC} install [--name "Mom's PC"]    set up this computer
-  ${MYPC} status                         how it is doing, and which family computers are online
-  ${MYPC} family create                  start a family and print its code
-  ${MYPC} family join <code>             join a family with the code from another computer
-  ${MYPC} family leave                   stop sharing this computer with the family
-  ${MYPC} chatgpt on | off               a private link for adding this computer to ChatGPT
-  ${MYPC} rename "<name>"                change the name family computers see
-  ${MYPC} update                         get the newest version
-  ${MYPC} uninstall [--purge]            remove it
+  ${mypc()} install [--name "Mom's PC"]    set up this computer
+  ${mypc()} status                         how it is doing, and which family computers are online
+  ${mypc()} family create                  start a family and print its code
+  ${mypc()} family join <code>             join a family with the code from another computer
+  ${mypc()} family leave                   stop sharing this computer with the family
+  ${mypc()} chatgpt on | off               a private link for adding this computer to ChatGPT
+  ${mypc()} rename "<name>"                change the name family computers see
+  ${mypc()} update                         get the newest version
+  ${mypc()} uninstall [--purge]            remove it
 
 Remote activity on this computer is logged in ${PATHS.activity}.
 More: ${REPO}`);
@@ -213,9 +216,9 @@ function guide(config) {
 
 Claude desktop app: quit Claude completely (Windows: right-click the Claude icon next to the clock > Quit; Mac: Claude menu > Quit Claude), then open it again. Ask it: "Take a screenshot of my computer".
 Claude Code: works in new chats.
-ChatGPT (Plus or Pro plan): run  ${MYPC} chatgpt on  and follow the three steps it prints.
+ChatGPT (Plus or Pro plan): run  ${mypc()} chatgpt on  and follow the three steps it prints.
 
-Family: on ONE computer run  ${MYPC} family create  and send the code to the other person. They run  ${MYPC} family join <code>.
+Family: on ONE computer run  ${mypc()} family create  and send the code to the other person. They run  ${mypc()} family join <code>.
 Keep the code private: anyone who has it can use every computer in the family.`;
 }
 
@@ -229,7 +232,7 @@ In ChatGPT on the web (needs a Plus or Pro plan):
 2. Add a new app or connector with the Create or + button. Name it MyPC, paste the link above, choose "No authentication", confirm you trust it, and save.
 3. In a new chat, turn on MyPC from the + menu and ask: "Take a screenshot of my computer".
 
-This computer has to be switched on and signed in for ChatGPT to reach it. Turn the link off any time with:  ${MYPC} chatgpt off`;
+This computer has to be switched on and signed in for ChatGPT to reach it. Turn the link off any time with:  ${mypc()} chatgpt off`;
 }
 
 function parseFlags(args) {
@@ -245,7 +248,7 @@ function parseFlags(args) {
 
 const run = commands[command ?? 'help'];
 if (!run) {
-  console.error(`Unknown command "${command}". Run: ${MYPC} help`);
+  console.error(`Unknown command "${command}". Run: ${mypc()} help`);
   process.exit(1);
 }
 try {

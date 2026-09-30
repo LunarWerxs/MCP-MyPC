@@ -2,12 +2,16 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { CLI, HOME } from './config.mjs';
 import { agentHealth } from './agent.mjs';
 import { isWindows, sleep } from './util.mjs';
 
 const NODE = process.execPath;
+// A folder each system already has on PATH for the signed-in user, so `mypc` works in any new terminal.
+const LAUNCHER = isWindows
+  ? join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'Microsoft', 'WindowsApps', 'mypc.cmd')
+  : join(homedir(), '.local', 'bin', 'mypc');
 const SERVER_KEY = 'mypc';
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 const MAC_LABEL = 'com.lunarwerxs.mcp-mypc';
@@ -107,6 +111,24 @@ export async function restartAgent() {
     spawn(NODE, [CLI, 'agent'], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   }
   await waitForAgent();
+}
+
+/** Add the `mypc` command. Returns a line describing what happened. */
+export function installLauncher() {
+  mkdirSync(dirname(LAUNCHER), { recursive: true });
+  writeFileSync(LAUNCHER, isWindows ? `@"${NODE}" "${CLI}" %*\r\n` : `#!/bin/sh\nexec "${NODE}" "${CLI}" "$@"\n`, { mode: 0o755 });
+  return launcherOnPath()
+    ? 'The mypc command works in any new terminal window.'
+    : `Added the mypc command to ${dirname(LAUNCHER)}; add that folder to PATH to use it by name.`;
+}
+
+export function launcherOnPath() {
+  const folder = resolve(dirname(LAUNCHER)).toLowerCase();
+  return existsSync(LAUNCHER) && (process.env.PATH ?? '').split(delimiter).some((p) => p && resolve(p).toLowerCase() === folder);
+}
+
+export function removeLauncher() {
+  rmSync(LAUNCHER, { force: true });
 }
 
 /** Where the Claude desktop app keeps its settings. On Windows and Mac the folder is made if Claude is not installed yet, so it works once it is. */
