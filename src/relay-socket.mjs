@@ -48,7 +48,8 @@ export class RelaySocket {
       try {
         ws = new WebSocket(this.url);
       } catch (e) {
-        settle(new Error(`The relay address is not valid: ${e.message}`));
+        // Settle after this promise is stored in #opening, so settling clears it rather than being overwritten.
+        queueMicrotask(() => settle(new Error(`The relay address is not valid: ${e.message}`)));
         return;
       }
       this.#connecting = ws;
