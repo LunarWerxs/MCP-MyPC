@@ -154,6 +154,9 @@ More: ${REPO}`);
  * Replace this install with the unpacked `fresh` version. The old version is moved aside first (a
  * rename inside ROOT, so the same disk) and put back if anything fails, so a failed update never
  * leaves a half-installed copy. Files the new version no longer has go away with the old version.
+ * That is safe because the install folder only ever holds shipped files: there are no dependencies,
+ * everything MPC-MyPC keeps (settings, family code, logs) lives in HOME, and a git install updates
+ * with `git pull` instead of coming here.
  */
 function swapIn(fresh) {
   const aside = join(ROOT, '.update-old');
