@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +22,7 @@ const flags = parseFlags(rest);
 
 const commands = {
   async install() {
+    if (flags.relay && !/^https?:\/\/[^\s/]+/.test(flags.relay)) throw new Error('--relay must be a web address starting with https://');
     const config = updateConfig({ name: flags.name ?? loadConfig().name, ...(flags.relay && { relay: flags.relay }) });
     console.log(`Installing MPC-MyPC ${VERSION} on "${config.name}"...`);
     if (!flags['no-apps']) for (const line of setup.registerApps()) console.log(`  ${line}`);
@@ -107,13 +108,18 @@ const commands = {
     } else {
       const work = mkdtempSync(join(tmpdir(), 'mypc-update-'));
       try {
-        const zip = join(work, 'main.zip');
-        const r = await fetch(`${REPO}/archive/refs/heads/main.zip`);
+        const archive = join(work, 'main.tar.gz');
+        const r = await fetch(`${REPO}/archive/refs/heads/main.tar.gz`);
         if (!r.ok) throw new Error(`Could not download the update (${r.status}).`);
-        writeFileSync(zip, Buffer.from(await r.arrayBuffer()));
-        const unpack = process.platform === 'linux' ? spawnSync('unzip', ['-q', zip, '-d', work]) : spawnSync('tar', ['-xf', zip, '-C', work], { windowsHide: true });
-        if (unpack.status !== 0) throw new Error('Could not unpack the update.');
-        cpSync(join(work, 'MPC-MyPC-main'), ROOT, { recursive: true, force: true });
+        writeFileSync(archive, Buffer.from(await r.arrayBuffer()));
+        // tar ships with Windows 10+, macOS and Linux.
+        if (spawnSync('tar', ['-xzf', archive, '-C', work], { windowsHide: true }).status !== 0) throw new Error('Could not unpack the update.');
+        const fresh = join(work, 'MPC-MyPC-main');
+        // Replace each part whole, so files removed upstream do not linger.
+        for (const entry of readdirSync(fresh)) {
+          rmSync(join(ROOT, entry), { recursive: true, force: true });
+          cpSync(join(fresh, entry), join(ROOT, entry), { recursive: true });
+        }
       } finally {
         rmSync(work, { recursive: true, force: true });
       }

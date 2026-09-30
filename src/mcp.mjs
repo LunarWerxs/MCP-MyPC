@@ -28,11 +28,15 @@ export function createMcpServer({ listTools, callTool, instructions }) {
 
   /** Answer one JSON-RPC message (or a batch). Returns null when nothing should be sent back. */
   async function handle(message) {
+    const invalid = { jsonrpc: '2.0', id: message?.id ?? null, error: { code: -32600, message: 'Invalid request' } };
     if (Array.isArray(message)) {
+      if (!message.length) return invalid;
       const replies = (await Promise.all(message.map(handle))).filter(Boolean);
       return replies.length ? replies : null;
     }
-    if (!message || typeof message.method !== 'string') return null;
+    if (!message || typeof message !== 'object') return invalid;
+    // A reply to something we asked (we never ask) needs no answer; anything else without a method is malformed.
+    if (typeof message.method !== 'string') return 'result' in message || 'error' in message ? null : invalid;
     const isNotification = !('id' in message);
     try {
       const result = await dispatch(message.method, message.params ?? {});

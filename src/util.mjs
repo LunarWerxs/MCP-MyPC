@@ -44,10 +44,11 @@ export function runShell(command, { cwd, timeoutMs = 120_000, env = {} } = {}) {
     const out = { stdout: '', stderr: '', truncated: false };
     const collect = (key) => (chunk) => {
       if (out[key].length >= OUTPUT_CAP) { out.truncated = true; return; }
-      out[key] += chunk.toString('utf8');
+      out[key] += chunk;
     };
-    child.stdout.on('data', collect('stdout'));
-    child.stderr.on('data', collect('stderr'));
+    // setEncoding decodes across chunk boundaries, so a character split between two reads stays whole.
+    child.stdout.setEncoding('utf8').on('data', collect('stdout'));
+    child.stderr.setEncoding('utf8').on('data', collect('stderr'));
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;

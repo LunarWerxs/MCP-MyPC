@@ -1,11 +1,12 @@
 // One WebSocket to the relay, kept alive with pings. A persistent socket (the background agent)
 // reconnects forever with backoff; an on-demand one (a chat's server) connects when first needed.
 
-const PING_EVERY_MS = 25_000;
-const DEAD_AFTER_MS = 75_000;
+const PING_EVERY_MS = 20_000;
+const DEAD_AFTER_MS = 50_000;
 
 export class RelaySocket {
   #ws = null;
+  #connecting = null;
   #opening = null;
   #closed = false;
   #backoff = 1000;
@@ -26,25 +27,42 @@ export class RelaySocket {
   }
 
   ensure(timeoutMs = 10_000) {
+    if (this.#closed) return Promise.reject(new Error('This relay connection was closed.'));
     if (this.isOpen) return Promise.resolve();
     if (this.#opening) return this.#opening;
     this.#opening = new Promise((resolve, reject) => {
-      const ws = new WebSocket(this.url);
-      ws.binaryType = 'arraybuffer';
       let settled = false;
+      let timer = null;
       const settle = (error) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         this.#opening = null;
-        if (error) reject(error);
-        else resolve();
+        this.#connecting = null;
+        if (error) {
+          reject(error);
+          this.#scheduleRetry();
+        } else resolve();
       };
-      const timer = setTimeout(() => {
+      let ws;
+      try {
+        ws = new WebSocket(this.url);
+      } catch (e) {
+        settle(new Error(`The relay address is not valid: ${e.message}`));
+        return;
+      }
+      this.#connecting = ws;
+      ws.binaryType = 'arraybuffer';
+      timer = setTimeout(() => {
         settle(new Error('Could not reach the MPC-MyPC relay. Check the internet connection.'));
         try { ws.close(); } catch {}
       }, timeoutMs);
       ws.onopen = () => {
+        if (this.#closed) {
+          ws.close();
+          settle(new Error('This relay connection was closed.'));
+          return;
+        }
         this.#ws = ws;
         this.#backoff = 1000;
         this.#lastPong = Date.now();
@@ -60,11 +78,10 @@ export class RelaySocket {
       ws.onclose = () => {
         settle(new Error('The relay closed the connection.'));
         if (this.#ws === ws) {
-          this.#ws = null;
-          clearInterval(this.#pinger);
+          this.#drop();
           this.log('lost the relay connection');
+          this.#scheduleRetry();
         }
-        this.#scheduleRetry();
       };
     });
     return this.#opening;
@@ -79,8 +96,16 @@ export class RelaySocket {
   close() {
     this.#closed = true;
     clearTimeout(this.#retry);
+    for (const ws of [this.#ws, this.#connecting]) try { ws?.close(); } catch {}
+    this.#drop();
+  }
+
+  /** Forget the current socket without waiting for it to finish closing (a dead link can take minutes). */
+  #drop() {
     clearInterval(this.#pinger);
-    try { this.#ws?.close(); } catch {}
+    const ws = this.#ws;
+    this.#ws = null;
+    try { ws?.close(); } catch {}
   }
 
   #scheduleRetry() {
@@ -99,7 +124,8 @@ export class RelaySocket {
       if (!this.isOpen) return;
       if (Date.now() - this.#lastPong > DEAD_AFTER_MS) {
         this.log('the relay stopped answering; reconnecting');
-        this.#ws.close();
+        this.#drop();
+        this.#scheduleRetry();
         return;
       }
       this.#ws.send('ping');

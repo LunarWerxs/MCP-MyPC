@@ -30,7 +30,7 @@ has not named.
 
 1. **Node.js 22 or newer.** Run `node --version`. If it is missing or older than v22:
    - Windows: `winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements`,
-     then use `"C:\Program Files\nodejs\node.exe"` wherever these steps say `node`, until a new terminal is opened.
+     then, until a new terminal is opened, use `& "C:\Program Files\nodejs\node.exe"` (PowerShell) wherever these steps say `node`.
    - macOS: `brew install node` if Homebrew is installed. Otherwise ask the person to install the
      LTS package from https://nodejs.org, and wait until they have.
    - Linux: the distribution's `nodejs` package if it is 22 or newer, otherwise https://nodejs.org.
@@ -39,7 +39,7 @@ has not named.
    - Without git, on Windows (PowerShell):
      `Invoke-WebRequest https://github.com/LunarWerxs/MPC-MyPC/archive/refs/heads/main.zip -OutFile "$env:TEMP\mypc.zip"; Expand-Archive "$env:TEMP\mypc.zip" $HOME -Force; Rename-Item "$HOME\MPC-MyPC-main" MPC-MyPC`
    - Without git, on macOS or Linux:
-     `curl -L -o /tmp/mypc.zip https://github.com/LunarWerxs/MPC-MyPC/archive/refs/heads/main.zip && unzip -q /tmp/mypc.zip -d "$HOME" && mv "$HOME/MPC-MyPC-main" "$HOME/MPC-MyPC"`
+     `curl -L https://github.com/LunarWerxs/MPC-MyPC/archive/refs/heads/main.tar.gz | tar -xz -C "$HOME" && mv "$HOME/MPC-MyPC-main" "$HOME/MPC-MyPC"`
 3. **Install:** `node "$HOME/MPC-MyPC/bin/mypc.mjs" install --name "<the name the person chose>"`.
    This adds MPC-MyPC to the Claude desktop app, Claude Code and Codex (whichever are present), and
    starts a small background helper that also starts at every sign-in, so family computers and

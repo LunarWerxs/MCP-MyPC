@@ -62,7 +62,8 @@ async function capture(out) {
 function run(cmd, args, message) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: 'ignore' });
-    child.on('error', () => reject(new Error(message ?? `${cmd} is not installed`)));
-    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(message ?? `${cmd} failed`))));
+    const timer = setTimeout(() => child.kill('SIGKILL'), 30_000);
+    child.on('error', () => { clearTimeout(timer); reject(new Error(message ?? `${cmd} is not installed`)); });
+    child.on('close', (code) => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(message ?? `${cmd} failed`)); });
   });
 }

@@ -5,9 +5,53 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { PATHS } from '../config.mjs';
 import { image, isWindows, sleep, text } from '../util.mjs';
+import { clickElement, focusField, readPage } from './browser-page.mjs';
 
 const COMMAND_TIMEOUT_MS = 30_000;
+const ENTER = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
 let session = null;
+
+const ACTIONS = {
+  async open(page, { url }) {
+    if (!url) throw new Error('open needs a url.');
+    const address = /^([a-z][a-z0-9+.-]*:\/\/|about:|data:)/i.test(url) ? url : `https://${url}`;
+    await page.send('Page.navigate', { url: address });
+    await settle(page);
+    return describe(page, 4000);
+  },
+
+  read: (page) => describe(page, 50_000),
+
+  async screenshot(page) {
+    const shot = await page.send('Page.captureScreenshot', { format: 'jpeg', quality: 75 });
+    return image(shot.data, 'image/jpeg');
+  },
+
+  async click(page, { selector, text: wanted }) {
+    const clicked = await evaluate(page, clickElement, selector ?? '', wanted ?? '');
+    if (!clicked) throw new Error(`Found nothing to click matching "${selector ?? wanted}". Use read to see what is on the page.`);
+    await afterAction(page);
+    return text(`Clicked "${clicked}".`);
+  },
+
+  async type(page, { selector, field, text: typed, submit }) {
+    const found = await evaluate(page, focusField, selector ?? '', field ?? '');
+    if (!found) throw new Error(`Found no box matching "${selector ?? field}". Use read to see what is on the page.`);
+    await page.send('Input.insertText', { text: String(typed ?? '') });
+    if (submit) {
+      await page.send('Input.dispatchKeyEvent', { type: 'keyDown', text: '\r', ...ENTER });
+      await page.send('Input.dispatchKeyEvent', { type: 'keyUp', ...ENTER });
+      await afterAction(page);
+    }
+    return text(`Typed into "${found}"${submit ? ' and pressed Enter' : ''}.`);
+  },
+
+  async back(page) {
+    await evaluate(page, () => history.back());
+    await afterAction(page);
+    return describe(page, 4000);
+  },
+};
 
 export const browser = {
   name: 'browser',
@@ -28,49 +72,9 @@ export const browser = {
   summary: (args) => [args.action, args.url ?? args.text ?? args.selector].filter(Boolean).join(' '),
   async run(args) {
     if (args.action === 'close') return closeBrowser();
-    const page = await connect();
-    switch (args.action) {
-      case 'open': {
-        if (!args.url) throw new Error('open needs a url.');
-        const url = /^[a-z]+:/i.test(args.url) ? args.url : `https://${args.url}`;
-        await page.send('Page.navigate', { url });
-        await settle(page);
-        return describe(page, 4000);
-      }
-      case 'read':
-        return describe(page, 50_000);
-      case 'screenshot': {
-        const shot = await page.send('Page.captureScreenshot', { format: 'jpeg', quality: 75 });
-        return image(shot.data, 'image/jpeg');
-      }
-      case 'click': {
-        const clicked = await evaluate(page, clickElement, args.selector ?? '', args.text ?? '');
-        if (!clicked) throw new Error(`Found nothing to click matching "${args.selector ?? args.text}". Use read to see what is on the page.`);
-        await sleep(500);
-        await settle(page);
-        return text(`Clicked "${clicked}".`);
-      }
-      case 'type': {
-        const found = await evaluate(page, focusField, args.selector ?? '', args.field ?? '');
-        if (!found) throw new Error(`Found no box matching "${args.selector ?? args.field}". Use read to see what is on the page.`);
-        await page.send('Input.insertText', { text: String(args.text ?? '') });
-        if (args.submit) {
-          const enter = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
-          await page.send('Input.dispatchKeyEvent', { type: 'keyDown', text: '\r', ...enter });
-          await page.send('Input.dispatchKeyEvent', { type: 'keyUp', ...enter });
-          await sleep(500);
-          await settle(page);
-        }
-        return text(`Typed into "${found}"${args.submit ? ' and pressed Enter' : ''}.`);
-      }
-      case 'back':
-        await evaluate(page, () => history.back());
-        await sleep(500);
-        await settle(page);
-        return describe(page, 4000);
-      default:
-        throw new Error(`Unknown browser action "${args.action}".`);
-    }
+    const action = Object.hasOwn(ACTIONS, args.action) ? ACTIONS[args.action] : null;
+    if (!action) throw new Error(`Unknown browser action "${args.action}".`);
+    return action(await connect(), args);
   },
 };
 
@@ -106,6 +110,7 @@ async function devtoolsPort() {
     const child = spawn(exe, [...args, 'about:blank'], { detached: true, stdio: 'ignore' });
     let exited = false;
     child.once('exit', () => { exited = true; });
+    child.once('error', () => { exited = true; });
     child.unref();
     for (let i = 0; i < 100 && !exited; i++) {
       await sleep(150);
@@ -124,13 +129,18 @@ async function answers(port) {
   }
 }
 
+async function devtoolsJson(port, path, method = 'GET') {
+  const r = await fetch(`http://127.0.0.1:${port}${path}`, { method, signal: AbortSignal.timeout(10_000) });
+  return r.json();
+}
+
 /** A DevTools connection to the browser's first tab, reused between calls. */
 async function connect() {
   if (session?.ws.readyState === WebSocket.OPEN) return session;
   const port = await devtoolsPort();
-  const tabs = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+  const tabs = await devtoolsJson(port, '/json/list');
   const tab = tabs.find((t) => t.type === 'page' && !t.url.startsWith('devtools://'))
-    ?? (await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json());
+    ?? (await devtoolsJson(port, '/json/new?about:blank', 'PUT'));
   session = await devtools(tab.webSocketDebuggerUrl);
   await session.send('Page.bringToFront').catch(() => {});
   return session;
@@ -139,8 +149,12 @@ async function connect() {
 async function devtools(url) {
   const ws = new WebSocket(url);
   await new Promise((resolve, reject) => {
-    ws.onopen = resolve;
-    ws.onerror = () => reject(new Error('Could not connect to the browser.'));
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error('The browser did not answer.'));
+    }, 10_000);
+    ws.onopen = () => { clearTimeout(timer); resolve(); };
+    ws.onerror = () => { clearTimeout(timer); reject(new Error('Could not connect to the browser.')); };
   });
   const waiting = new Map();
   let seq = 0;
@@ -174,7 +188,7 @@ async function closeBrowser() {
   const portFile = join(PATHS.browserProfile, 'DevToolsActivePort');
   const port = existsSync(portFile) ? Number(readFileSync(portFile, 'utf8').split('\n')[0]) : 0;
   if (!(await answers(port))) return text('The browser was not open.');
-  const { webSocketDebuggerUrl } = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
+  const { webSocketDebuggerUrl } = await devtoolsJson(port, '/json/version');
   const root = await devtools(webSocketDebuggerUrl);
   await root.send('Browser.close').catch(() => {});
   session = null;
@@ -197,58 +211,13 @@ async function settle(page) {
   }
 }
 
+/** A click or Enter may start loading a new page: give it a moment, then wait for it. */
+async function afterAction(page) {
+  await sleep(500);
+  await settle(page);
+}
+
 async function describe(page, maxChars) {
   const p = await evaluate(page, readPage, maxChars);
   return text(`${p.title}\n${p.url}\n\n${p.text}${p.controls.length ? `\n\nThings you can click or type into:\n${p.controls.join('\n')}` : ''}`);
-}
-
-// The functions below run inside the web page, not in Node.
-
-function readPage(maxChars) {
-  const visible = (el) => {
-    const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
-  };
-  const name = (el) => (el.innerText || el.value || el.getAttribute('aria-label') || el.placeholder || el.title || el.name || '')
-    .trim().replace(/\s+/g, ' ').slice(0, 80);
-  const controls = [...document.querySelectorAll('a[href], button, input, select, textarea, [role=button], [role=link], [contenteditable=true]')]
-    .filter(visible).slice(0, 150)
-    .map((el) => {
-      const tag = el.tagName.toLowerCase();
-      return `${tag === 'input' ? `input(${el.type || 'text'})` : tag}: ${name(el)}`;
-    });
-  const body = document.body?.innerText ?? '';
-  return { title: document.title, url: location.href, text: body.length > maxChars ? `${body.slice(0, maxChars)}\n(page continues)` : body, controls };
-}
-
-function clickElement(selector, wanted) {
-  const name = (el) => (el.innerText || el.value || el.getAttribute('aria-label') || el.title || '').trim().replace(/\s+/g, ' ');
-  let el = null;
-  if (selector) el = document.querySelector(selector);
-  else {
-    const want = wanted.trim().toLowerCase();
-    const all = [...document.querySelectorAll('a, button, input[type=submit], input[type=button], input[type=checkbox], input[type=radio], label, summary, [role=button], [role=link], [role=tab], [role=menuitem], [onclick]')];
-    el = all.find((e) => name(e).toLowerCase() === want) ?? all.find((e) => name(e).toLowerCase().includes(want));
-  }
-  if (!el) return null;
-  el.scrollIntoView({ block: 'center' });
-  el.click();
-  return name(el) || selector;
-}
-
-function focusField(selector, wanted) {
-  let el = null;
-  if (selector) el = document.querySelector(selector);
-  else if (wanted) {
-    const want = wanted.trim().toLowerCase();
-    const fields = [...document.querySelectorAll('input:not([type=hidden]), textarea, select, [contenteditable=true]')];
-    const labelOf = (f) => [f.getAttribute('aria-label'), f.placeholder, f.name, f.id && document.querySelector(`label[for="${CSS.escape(f.id)}"]`)?.innerText, f.closest('label')?.innerText]
-      .filter(Boolean).map((s) => s.trim().toLowerCase());
-    el = fields.find((f) => labelOf(f).some((l) => l === want)) ?? fields.find((f) => labelOf(f).some((l) => l.includes(want)));
-  } else el = document.activeElement;
-  if (!el || el === document.body) return null;
-  el.scrollIntoView({ block: 'center' });
-  el.focus();
-  if (typeof el.select === 'function') el.select();
-  return el.getAttribute('aria-label') || el.placeholder || el.name || el.id || el.tagName.toLowerCase();
 }

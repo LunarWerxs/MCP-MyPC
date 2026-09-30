@@ -2,7 +2,8 @@
 // from the family code, which only the family's computers hold: the relay (and whoever runs it)
 // sees only the room id and ciphertext, and cannot read, change or forge a message.
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto';
-import { wsUrl } from './config.mjs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { PATHS, wsUrl } from './config.mjs';
 import { RelaySocket } from './relay-socket.mjs';
 import { errorResult, sleep } from './util.mjs';
 
@@ -11,6 +12,22 @@ const CODE_BYTES = 20;
 const AAD = Buffer.from('mpc-mypc v1');
 const MAX_CLOCK_SKEW_MS = 10 * 60_000;
 const ACK_TIMEOUT_MS = 8000;
+
+// Tool calls this computer already ran, kept on disk so a copy re-sent after a restart is still refused.
+const ranCalls = new Map();
+let ranCallsLoaded = false;
+
+function alreadyRan(mid, ts) {
+  if (!ranCallsLoaded) {
+    ranCallsLoaded = true;
+    try { for (const [id, at] of Object.entries(JSON.parse(readFileSync(PATHS.ranCalls, 'utf8')))) ranCalls.set(id, at); } catch {}
+  }
+  if (ranCalls.has(mid)) return true;
+  for (const [id, at] of ranCalls) if (Date.now() - at > 2 * MAX_CLOCK_SKEW_MS) ranCalls.delete(id);
+  ranCalls.set(mid, ts);
+  try { writeFileSync(PATHS.ranCalls, JSON.stringify(Object.fromEntries(ranCalls))); } catch {}
+  return false;
+}
 
 export function newFamilyCode() {
   const chars = [];
@@ -125,7 +142,7 @@ export class FamilyLink {
 
   /** Run a tool on another family computer. It confirms receipt at once, so one that went offline fails fast. */
   async call(deviceId, tool, args, timeoutMs) {
-    await this.#socket.ensure();
+    try { await this.#socket.ensure(); } catch (e) { return errorResult(e.message); }
     const rid = randomBytes(8).toString('hex');
     return new Promise((resolve) => {
       const finish = (result) => {
@@ -162,9 +179,10 @@ export class FamilyLink {
         if (m.to === this.conn) this.#helloWaiters.get(m.re)?.(m.from);
         break;
       case 'call':
-        if (this.serve && m.to === this.device.id) {
+        if (this.serve && m.to === this.device.id && !alreadyRan(m.mid, m.ts)) {
           this.#send({ t: 'ack', to: m.from.conn, re: m.rid });
-          const result = await this.serve(m.tool, m.args ?? {}, m.from);
+          let result;
+          try { result = await this.serve(m.tool, m.args ?? {}, m.from); } catch (e) { result = errorResult(e.message); }
           this.#send({ t: 'result', to: m.from.conn, re: m.rid, result });
         }
         break;

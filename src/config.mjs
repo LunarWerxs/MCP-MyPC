@@ -16,6 +16,7 @@ export const PATHS = {
   config: join(HOME, 'config.json'),
   activity: join(HOME, 'remote-activity.log'),
   agentLog: join(HOME, 'agent.log'),
+  ranCalls: join(HOME, 'ran-calls.json'),
   browserProfile: join(HOME, 'browser-profile'),
 };
 // The background agent listens here (this computer only) so a second copy can tell one is running.

@@ -36,20 +36,26 @@ export async function installAutostart() {
   <key>StandardErrorPath</key><string>${xml(join(HOME, 'agent-errors.log'))}</string>
 </dict></plist>
 `);
-    const domain = `gui/${userInfo().uid}`;
-    spawnSync('launchctl', ['bootout', `${domain}/${MAC_LABEL}`]);
-    const r = spawnSync('launchctl', ['bootstrap', domain, MAC_PLIST]);
-    if (r.status === 0) return 'The background helper starts whenever you log in to this Mac.';
+    spawnSync('launchctl', ['bootout', MAC_SERVICE()]);
+    // bootout finishes in the background, so bootstrap can fail for a moment on a reinstall.
+    for (let i = 0; i < 10; i++) {
+      if (spawnSync('launchctl', ['bootstrap', `gui/${userInfo().uid}`, MAC_PLIST]).status === 0) {
+        await waitForAgent();
+        return 'The background helper starts whenever you log in to this Mac.';
+      }
+      await sleep(500);
+    }
     await restartAgent();
     return 'Could not set the helper to start at login; it is running for now.';
   }
+  const systemdPath = (p) => p.replace(/%/g, '%%');
   mkdirSync(dirname(LINUX_UNIT), { recursive: true });
   writeFileSync(LINUX_UNIT, `[Unit]
 Description=MPC-MyPC background helper
 After=network-online.target
 
 [Service]
-ExecStart="${NODE}" "${CLI}" agent
+ExecStart="${systemdPath(NODE)}" "${systemdPath(CLI)}" agent
 Restart=on-failure
 RestartSec=5
 
@@ -57,16 +63,24 @@ RestartSec=5
 WantedBy=default.target
 `);
   spawnSync('systemctl', ['--user', 'daemon-reload']);
-  const r = spawnSync('systemctl', ['--user', 'enable', '--now', 'mpc-mypc.service']);
-  if (r.status === 0) return 'The background helper starts whenever you log in.';
+  if (spawnSync('systemctl', ['--user', 'enable', 'mpc-mypc.service']).status === 0) {
+    await restartAgent();
+    return 'The background helper starts whenever you log in.';
+  }
   await restartAgent();
   return 'Could not set the helper to start at login (no systemd); it is running for now.';
+}
+
+const MAC_SERVICE = () => `gui/${userInfo().uid}/${MAC_LABEL}`;
+
+async function waitForAgent() {
+  for (let i = 0; i < 40 && !(await agentHealth()); i++) await sleep(250);
 }
 
 export async function removeAutostart() {
   if (isWindows) spawnSync('reg', ['delete', RUN_KEY, '/v', 'MPC-MyPC', '/f'], { windowsHide: true, stdio: 'ignore' });
   else if (process.platform === 'darwin') {
-    spawnSync('launchctl', ['bootout', `gui/${userInfo().uid}/${MAC_LABEL}`]);
+    spawnSync('launchctl', ['bootout', MAC_SERVICE()]);
     rmSync(MAC_PLIST, { force: true });
   } else {
     spawnSync('systemctl', ['--user', 'disable', '--now', 'mpc-mypc.service']);
@@ -82,21 +96,23 @@ export async function stopAgent() {
   for (let i = 0; i < 20 && (await agentHealth()); i++) await sleep(150);
 }
 
-/** Restart the helper so it runs the current code (after install or update). */
+/** Restart the helper so it runs the current code (after install or update), through the service manager when there is one. */
 export async function restartAgent() {
-  await stopAgent();
-  // On a Mac or Linux the service manager brings it back by itself.
-  if (!isWindows && (existsSync(MAC_PLIST) || existsSync(LINUX_UNIT))) {
-    for (let i = 0; i < 40 && !(await agentHealth()); i++) await sleep(250);
-    if (await agentHealth()) return;
+  const managed = (process.platform === 'darwin' && existsSync(MAC_PLIST)
+      && spawnSync('launchctl', ['kickstart', '-k', MAC_SERVICE()]).status === 0)
+    || (process.platform === 'linux' && existsSync(LINUX_UNIT)
+      && spawnSync('systemctl', ['--user', 'restart', 'mpc-mypc.service']).status === 0);
+  if (!managed) {
+    await stopAgent();
+    spawn(NODE, [CLI, 'agent'], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   }
-  spawn(NODE, [CLI, 'agent'], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
-  for (let i = 0; i < 40 && !(await agentHealth()); i++) await sleep(250);
+  await waitForAgent();
 }
 
+/** Where the Claude desktop app keeps its settings. On Windows and Mac the folder is made if Claude is not installed yet, so it works once it is. */
 function claudeDesktopConfigDirs() {
   if (process.platform === 'darwin') return [join(homedir(), 'Library', 'Application Support', 'Claude')];
-  if (!isWindows) return [join(homedir(), '.config', 'Claude')];
+  if (!isWindows) return [join(homedir(), '.config', 'Claude')].filter((d) => existsSync(d));
   const dirs = [join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'Claude')];
   // The Microsoft Store build of Claude keeps its settings inside its package folder.
   const packages = join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'Packages');
@@ -121,12 +137,14 @@ function editJson(file, change) {
   return true;
 }
 
-/** Full path of a program on PATH, or null. */
+/** Full path of a program on PATH, or null. On Windows only something Windows can run (npm also leaves a bare shell script). */
 function which(program) {
   const r = isWindows
     ? spawnSync('where', [program], { encoding: 'utf8', windowsHide: true })
     : spawnSync('sh', ['-c', `command -v ${program}`], { encoding: 'utf8' });
-  return r.status === 0 ? r.stdout.split(/\r?\n/)[0].trim() || null : null;
+  if (r.status !== 0) return null;
+  const found = r.stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  return (isWindows ? found.find((p) => /\.(exe|cmd|bat)$/i.test(p)) : found[0]) ?? null;
 }
 
 function runProgram(path, args) {
@@ -137,14 +155,17 @@ function runProgram(path, args) {
 
 const CODEX_CONFIG = join(homedir(), '.codex', 'config.toml');
 
-/** Codex's settings with our [mcp_servers.mypc] table (and any sub-tables) taken out. */
+/** Codex's settings with our [mcp_servers.mypc] table (and any sub-tables) taken out, in the file's own line endings. */
 function codexWithoutUs() {
-  if (!existsSync(CODEX_CONFIG)) return '';
+  if (!existsSync(CODEX_CONFIG)) return { rest: '', eol: '\n' };
+  const current = readFileSync(CODEX_CONFIG, 'utf8');
+  const eol = current.includes('\r\n') ? '\r\n' : '\n';
   let ours = false;
-  return readFileSync(CODEX_CONFIG, 'utf8').split(/\r?\n/).filter((line) => {
+  const rest = current.split(/\r?\n/).filter((line) => {
     if (/^\s*\[/.test(line)) ours = /^\s*\[mcp_servers\.mypc[.\]]/.test(line);
     return !ours;
-  }).join('\n').trimEnd();
+  }).join(eol).trimEnd();
+  return { rest, eol };
 }
 
 /** Add MPC-MyPC to every AI app found on this computer. Returns one line per app. */
@@ -162,10 +183,10 @@ export function registerApps() {
     done.push(r.status === 0 ? 'Claude Code: added.' : 'Claude Code: could not add it automatically.');
   }
   if (existsSync(dirname(CODEX_CONFIG))) {
+    const { rest, eol } = codexWithoutUs();
     // A JSON string is also a valid TOML string, escapes included.
-    const table = `[mcp_servers.mypc]\ncommand = ${JSON.stringify(NODE)}\nargs = [${JSON.stringify(CLI)}, "stdio"]\n`;
-    const rest = codexWithoutUs();
-    writeFileSync(CODEX_CONFIG, rest ? `${rest}\n\n${table}` : table);
+    const table = ['[mcp_servers.mypc]', `command = ${JSON.stringify(NODE)}`, `args = [${JSON.stringify(CLI)}, "stdio"]`, ''].join(eol);
+    writeFileSync(CODEX_CONFIG, rest ? `${rest}${eol}${eol}${table}` : table);
     done.push('Codex (ChatGPT\'s coding app): added.');
   }
   return done;
@@ -178,5 +199,8 @@ export function unregisterApps() {
   }
   const claude = which('claude');
   if (claude) runProgram(claude, ['mcp', 'remove', '--scope', 'user', SERVER_KEY]);
-  if (existsSync(CODEX_CONFIG)) writeFileSync(CODEX_CONFIG, `${codexWithoutUs()}\n`);
+  if (existsSync(CODEX_CONFIG)) {
+    const { rest, eol } = codexWithoutUs();
+    writeFileSync(CODEX_CONFIG, `${rest}${eol}`);
+  }
 }

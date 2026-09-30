@@ -51,7 +51,12 @@ export const openTool = {
       const r = await runShell('Start-Process -FilePath $env:MYPC_TARGET', { timeoutMs: 20_000, env: { MYPC_TARGET: value } });
       if (r.code !== 0) throw new Error(`Could not open ${value}: ${r.stderr.trim()}`);
     } else {
-      spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [value], { detached: true, stdio: 'ignore' }).unref();
+      const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
+      await new Promise((resolve, reject) => {
+        const child = spawn(opener, [value], { stdio: 'ignore' });
+        child.once('error', () => reject(new Error(`Could not open it: ${opener} is not available on this computer.`)));
+        child.once('close', (code) => (code === 0 ? resolve() : reject(new Error(`Could not open ${value}.`))));
+      });
     }
     return text(`Opened ${value}.`);
   },

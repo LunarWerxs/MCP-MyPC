@@ -18,7 +18,8 @@ const remoteActivity = {
     let log = '';
     try { log = readFileSync(PATHS.activity, 'utf8'); } catch {}
     const lines = log.trim().split('\n').filter(Boolean);
-    return text(lines.length ? lines.slice(-(Number(entries) || 50)).join('\n') : 'Nobody else has used this computer through MPC-MyPC.');
+    const count = Math.max(1, Math.floor(Number(entries) || 50));
+    return text(lines.length ? lines.slice(-count).join('\n') : 'Nobody else has used this computer through MPC-MyPC.');
   },
 };
 
@@ -97,11 +98,23 @@ export function createToolbox({ config, family, caller }) {
 
     const link = family();
     if (!link) return errorResult('This computer has not joined a family, so it cannot reach other computers.');
-    const match = pick(othersIn(await whoIsOnline(link)), target) ?? pick(othersIn(await whoIsOnline(link, true)), target);
-    if (!match) {
-      return errorResult(`No family computer called "${target}" is online. Online now: ${othersIn(rollCall.online).map((d) => d.name).join(', ') || 'none'}.`);
+    try {
+      // This computer takes part in the match, so "mom" on Mom's PC never quietly lands on "Mom's laptop".
+      const self = { id: config.deviceId, name: config.name };
+      const choose = (online) => pick([self, ...othersIn(online)], target);
+      let found = choose(await whoIsOnline(link));
+      if (!found.match) found = choose(await whoIsOnline(link, true));
+      if (found.match === self) return runLocal(name, rest, caller);
+      if (!found.match) {
+        const online = othersIn(rollCall.online).map((d) => d.name).join(', ') || 'none';
+        return errorResult(found.ambiguous
+          ? `More than one family computer matches "${target}". Use the full name. Online now: ${online}.`
+          : `No family computer called "${target}" is online. Online now: ${online}.`);
+      }
+      return await link.call(found.match.id, name, rest, BY_NAME.get(name).timeoutMs?.(rest) ?? 90_000);
+    } catch (e) {
+      return errorResult(e.message);
     }
-    return link.call(match.id, name, rest, BY_NAME.get(name).timeoutMs?.(rest) ?? 90_000);
   }
 
   function isThisComputer(target) {
@@ -112,23 +125,24 @@ export function createToolbox({ config, family, caller }) {
   return { listTools, callTool };
 }
 
-/** Exact name first, then a single computer whose name contains the text ("mom" finds "Mom's PC"). */
+/** Exact name or id first, then the one computer whose name contains the text ("mom" finds "Mom's PC"). Never a guess. */
 function pick(devices, target) {
   const t = target.toLowerCase();
-  const exact = devices.find((d) => d.name.toLowerCase() === t || d.id === t);
-  if (exact) return exact;
-  const partial = devices.filter((d) => d.name.toLowerCase().includes(t));
-  return partial.length === 1 ? partial[0] : null;
+  const exact = devices.filter((d) => d.name.toLowerCase() === t || d.id === t);
+  const candidates = exact.length ? exact : devices.filter((d) => d.name.toLowerCase().includes(t));
+  return candidates.length === 1 ? { match: candidates[0] } : { ambiguous: candidates.length > 1 };
 }
 
 const ACTIVITY_LOG_MAX = 512 * 1024;
 
 function recordActivity(from, tool, args) {
-  const detail = String(tool.summary?.(args) ?? '').replace(/\s+/g, ' ').slice(0, 200);
   try {
+    const oneLine = (value, max) => String(value ?? '').replace(/\s+/g, ' ').slice(0, max);
+    const detail = oneLine(tool.summary?.(args), 200);
     if (statSync(PATHS.activity, { throwIfNoEntry: false })?.size > ACTIVITY_LOG_MAX) {
-      writeFileSync(PATHS.activity, readFileSync(PATHS.activity, 'utf8').slice(-ACTIVITY_LOG_MAX / 2));
+      const kept = readFileSync(PATHS.activity, 'utf8').slice(-ACTIVITY_LOG_MAX / 2);
+      writeFileSync(PATHS.activity, kept.slice(kept.indexOf('\n') + 1));
     }
-    appendFileSync(PATHS.activity, `${new Date().toISOString()}  ${from.name}  ${tool.name}${detail ? `  ${detail}` : ''}\n`);
+    appendFileSync(PATHS.activity, `${new Date().toISOString()}  ${oneLine(from.name, 60)}  ${tool.name}${detail ? `  ${detail}` : ''}\n`);
   } catch {}
 }
