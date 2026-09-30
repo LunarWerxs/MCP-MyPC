@@ -12,6 +12,9 @@ const NODE = process.execPath;
 const LAUNCHER = isWindows
   ? join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'Microsoft', 'WindowsApps', 'mypc.cmd')
   : join(homedir(), '.local', 'bin', 'mypc');
+// Git Bash (the shell Claude Code uses on Windows) runs only .exe files by bare name, so a shell script sits beside mypc.cmd, as npm does.
+const SH_LAUNCHER = isWindows ? join(dirname(LAUNCHER), 'mypc') : null;
+const shLauncher = (node, cli) => `#!/bin/sh\nexec "${node}" "${cli}" "$@"\n`;
 const SERVER_KEY = 'mypc';
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 const MAC_LABEL = 'com.lunarwerxs.mcp-mypc';
@@ -116,7 +119,8 @@ export async function restartAgent() {
 /** Add the `mypc` command. Returns a line describing what happened. */
 export function installLauncher() {
   mkdirSync(dirname(LAUNCHER), { recursive: true });
-  writeFileSync(LAUNCHER, isWindows ? `@"${NODE}" "${CLI}" %*\r\n` : `#!/bin/sh\nexec "${NODE}" "${CLI}" "$@"\n`, { mode: 0o755 });
+  writeFileSync(LAUNCHER, isWindows ? `@"${NODE}" "${CLI}" %*\r\n` : shLauncher(NODE, CLI), { mode: 0o755 });
+  if (SH_LAUNCHER) writeFileSync(SH_LAUNCHER, shLauncher(NODE.replace(/\\/g, '/'), CLI.replace(/\\/g, '/')));
   return launcherOnPath()
     ? 'The mypc command works in any new terminal window.'
     : `Added the mypc command to ${dirname(LAUNCHER)}; add that folder to PATH to use it by name.`;
@@ -129,6 +133,7 @@ export function launcherOnPath() {
 
 export function removeLauncher() {
   rmSync(LAUNCHER, { force: true });
+  if (SH_LAUNCHER) rmSync(SH_LAUNCHER, { force: true });
 }
 
 /** Where the Claude desktop app keeps its settings. On Windows and Mac the folder is made if Claude is not installed yet, so it works once it is. */
@@ -206,8 +211,9 @@ export function registerApps() {
   }
   if (existsSync(dirname(CODEX_CONFIG))) {
     const { rest, eol } = codexWithoutUs();
-    // A JSON string is also a valid TOML string, escapes included.
-    const table = ['[mcp_servers.mypc]', `command = ${JSON.stringify(NODE)}`, `args = [${JSON.stringify(CLI)}, "stdio"]`, ''].join(eol);
+    // A JSON string is also a valid TOML string, escapes included. Codex gives up on a tool call after
+    // 60 seconds unless told otherwise, and run_command may run for up to an hour.
+    const table = ['[mcp_servers.mypc]', `command = ${JSON.stringify(NODE)}`, `args = [${JSON.stringify(CLI)}, "stdio"]`, 'tool_timeout_sec = 3660', ''].join(eol);
     writeFileSync(CODEX_CONFIG, rest ? `${rest}${eol}${eol}${table}` : table);
     done.push('Codex (ChatGPT\'s coding app): added.');
   }
