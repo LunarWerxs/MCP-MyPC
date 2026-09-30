@@ -142,6 +142,7 @@ const commands = {
   ${mypc()} status                         how it is doing, and which family computers are online
   ${mypc()} family create                  start a family and print its code
   ${mypc()} family join <code>             join a family with the code from another computer
+  ${mypc()} family code                    show this family's code again
   ${mypc()} family leave                   stop sharing this computer with the family
   ${mypc()} chatgpt on | off               a private link for adding this computer to ChatGPT
   ${mypc()} rename "<name>"                change the name family computers see

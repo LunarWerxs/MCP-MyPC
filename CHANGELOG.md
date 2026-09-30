@@ -12,4 +12,6 @@
   the computer too.
 - One-command install that adds MCP-MyPC to the Claude desktop app, Claude Code and Codex, and starts
   the background helper at every sign-in on Windows, macOS and Linux.
+- A `mypc` command for everything after install (status, family, ChatGPT link, rename, update,
+  uninstall); `mypc update` puts the old version back if an update fails.
 - A log of everything family computers and the ChatGPT link did on each computer.
