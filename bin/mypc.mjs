@@ -160,6 +160,8 @@ More: ${REPO}`);
  */
 function swapIn(fresh) {
   const aside = join(ROOT, '.update-old');
+  // Left by an earlier update that could not put everything back: finish putting it back first.
+  if (existsSync(aside)) putBack(aside, readdirSync(aside).filter((e) => !existsSync(join(ROOT, e))));
   rmSync(aside, { recursive: true, force: true });
   mkdirSync(aside);
   const moved = [];
@@ -174,12 +176,22 @@ function swapIn(fresh) {
       cpSync(join(fresh, entry), join(ROOT, entry), { recursive: true });
     }
   } catch (e) {
-    for (const entry of copied) rmSync(join(ROOT, entry), { recursive: true, force: true });
-    for (const entry of moved) renameSync(join(aside, entry), join(ROOT, entry));
+    for (const entry of copied) try { rmSync(join(ROOT, entry), { recursive: true, force: true }); } catch {}
+    putBack(aside, moved, `The update failed (${e.message})`);
     rmSync(aside, { recursive: true, force: true });
     throw new Error(`The update failed, so the old version was put back: ${e.message}`);
   }
   rmSync(aside, { recursive: true, force: true });
+}
+
+/** Move each entry back from `aside`, one at a time. Throws, keeping `aside`, if any could not be moved. */
+function putBack(aside, entries, why = 'An earlier update did not finish') {
+  const stuck = entries.filter((entry) => {
+    try { renameSync(join(aside, entry), join(ROOT, entry)); return false; } catch { return true; }
+  });
+  if (stuck.length) {
+    throw new Error(`${why}, and ${stuck.join(', ')} could not be put back. The old copies are in ${aside}: close anything using this folder and run update again.`);
+  }
 }
 
 async function showFamily(config) {
