@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,7 +22,9 @@ const flags = parseFlags(rest);
 
 const commands = {
   async install() {
-    if (flags.relay && !/^https?:\/\/[^\s/]+/.test(flags.relay)) throw new Error('--relay must be a web address starting with https://');
+    if (flags.relay && !/^(https:\/\/[^\s/]+|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$))/.test(flags.relay)) {
+      throw new Error('--relay must start with https:// (or be http://localhost for a relay you are testing on this computer).');
+    }
     const config = updateConfig({ name: flags.name ?? loadConfig().name, ...(flags.relay && { relay: flags.relay }) });
     console.log(`Installing MPC-MyPC ${VERSION} on "${config.name}"...`);
     if (!flags['no-apps']) for (const line of setup.registerApps()) console.log(`  ${line}`);
@@ -114,12 +116,7 @@ const commands = {
         writeFileSync(archive, Buffer.from(await r.arrayBuffer()));
         // tar ships with Windows 10+, macOS and Linux.
         if (spawnSync('tar', ['-xzf', archive, '-C', work], { windowsHide: true }).status !== 0) throw new Error('Could not unpack the update.');
-        const fresh = join(work, 'MPC-MyPC-main');
-        // Replace each part whole, so files removed upstream do not linger.
-        for (const entry of readdirSync(fresh)) {
-          rmSync(join(ROOT, entry), { recursive: true, force: true });
-          cpSync(join(fresh, entry), join(ROOT, entry), { recursive: true });
-        }
+        swapIn(join(work, 'MPC-MyPC-main'));
       } finally {
         rmSync(work, { recursive: true, force: true });
       }
@@ -152,6 +149,35 @@ Remote activity on this computer is logged in ${PATHS.activity}.
 More: ${REPO}`);
   },
 };
+
+/**
+ * Replace this install with the unpacked `fresh` version. The old version is moved aside first (a
+ * rename inside ROOT, so the same disk) and put back if anything fails, so a failed update never
+ * leaves a half-installed copy. Files the new version no longer has go away with the old version.
+ */
+function swapIn(fresh) {
+  const aside = join(ROOT, '.update-old');
+  rmSync(aside, { recursive: true, force: true });
+  mkdirSync(aside);
+  const moved = [];
+  const copied = [];
+  try {
+    for (const entry of readdirSync(ROOT).filter((e) => e !== '.update-old')) {
+      renameSync(join(ROOT, entry), join(aside, entry));
+      moved.push(entry);
+    }
+    for (const entry of readdirSync(fresh)) {
+      copied.push(entry);
+      cpSync(join(fresh, entry), join(ROOT, entry), { recursive: true });
+    }
+  } catch (e) {
+    for (const entry of copied) rmSync(join(ROOT, entry), { recursive: true, force: true });
+    for (const entry of moved) renameSync(join(aside, entry), join(ROOT, entry));
+    rmSync(aside, { recursive: true, force: true });
+    throw new Error(`The update failed, so the old version was put back: ${e.message}`);
+  }
+  rmSync(aside, { recursive: true, force: true });
+}
 
 async function showFamily(config) {
   const link = new FamilyLink({ relay: config.relay, code: config.familyCode, device: device(config) });
