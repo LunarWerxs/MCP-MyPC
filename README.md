@@ -56,17 +56,17 @@ A free MCP server that lets Claude, Codex or ChatGPT use your computer, and your
 
 1. On one computer, ask your AI to *"start an MCP-MyPC family"*. You get a code that starts with `MYPC-`.
 2. Text it privately to the other person.
-3. They ask their AI to *"join my MCP-MyPC family with code ..."*.
+3. They install it too, then ask their AI to *"join my MCP-MyPC family with code ..."*.
 
-That's it. Now ask *"what's on Mom's screen?"* and it works whenever her computer is on.
+That's it. Now ask *"what's on Mom's screen?"* and it works whenever her computer is on and she's signed in.
 
 ## 🔒 Is it safe?
 
 - 🔑 **The family code is the key.** Anyone who has it can use every computer in the family, so share it only with people you'd trust at your unlocked computer.
-- 🔐 **The relay can't read a thing.** Family messages are sealed with your code, which never leaves your computers.
-- 🙋 **Your AI asks first** before deleting, uninstalling or changing settings, and the Claude apps ask you before each step.
+- 🔐 **The relay can't read a thing.** Family messages are sealed with your code, and the relay never gets the code.
+- 🙋 **Your AI is told to ask first** before deleting, uninstalling or changing settings.
 - 🧾 **Everything is logged.** What another computer does on yours is written to a log on yours.
-- ⚠️ **The ChatGPT link is the exception.** It's off unless you turn it on, works like a password, and isn't end-to-end encrypted.
+- ⚠️ **The ChatGPT link is the exception.** It's off unless someone in the family turns it on, works like a password, and isn't end-to-end encrypted.
 
 The full picture, and how to lock someone out: [SECURITY.md](SECURITY.md).
 
@@ -76,7 +76,7 @@ The full picture, and how to lock someone out: [SECURITY.md](SECURITY.md).
 | :-- | :-- |
 | 🔍 Find, read and save files | 🖥️ Run commands |
 | 📸 Take a screenshot | 🌐 Use its own browser window |
-| 🩺 Check the computer's health | 📂 Open a website, file or folder |
+| 🩺 Check memory, disks and system info | 📂 Open a website, file or folder |
 | 👪 See which family computers are on | 🧾 Show what others did here |
 
 Every tool works on this computer or on a family computer by name: "mom" finds "Mom's PC". [All the details](docs/GUIDE.md#tools).
@@ -91,11 +91,11 @@ Each computer keeps one encrypted connection to a small relay, so family compute
 
 ## ❓ FAQ
 
-**Can the people who make this get into my computer?** No. Getting in takes your family code, which is made on your computer and never sent to us. (A [ChatGPT link](SECURITY.md#the-chatgpt-link), if you turn one on, is the exception.)
+**Can the people who make this get into my computer?** Not without your family code, which is made on your computer and never sent to us. The one exception is a [ChatGPT link](SECURITY.md#the-chatgpt-link), if anyone in the family turns one on.
 
 **What does it cost?** Nothing. ChatGPT needs a Plus or Pro plan for it.
 
-**What if the other computer is off?** Your AI tells you within a few seconds. It's reachable whenever it's on and signed in.
+**What if the other computer is off?** Your AI tells you within about 8 seconds. It's reachable whenever it's on and signed in.
 
 **How do I remove it?** Ask your AI to *"uninstall MCP-MyPC"*.
 
