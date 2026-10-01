@@ -16,3 +16,8 @@
 - A `mypc` command for everything after install (status, family, ChatGPT link, rename, update,
   uninstall); `mypc update` puts the old version back if an update fails.
 - A log of everything family computers and the ChatGPT link did on each computer.
+- Joining with the example family code shown in the README is refused, so people who paste it can
+  never end up sharing one family.
+- Docs: a short README you can hand to anyone (install by pasting one message into your AI),
+  INSTALL.md (the exact recipe the AI follows), SECURITY.md (who can use a computer and how to
+  stop it) and a full guide.
