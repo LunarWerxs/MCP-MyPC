@@ -70,12 +70,9 @@ RestartSec=5
 WantedBy=default.target
 `);
   spawnSync('systemctl', ['--user', 'daemon-reload']);
-  if (spawnSync('systemctl', ['--user', 'enable', 'mcp-mypc.service']).status === 0) {
-    await restartAgent();
-    return 'The background helper starts whenever you log in.';
-  }
+  const enabled = spawnSync('systemctl', ['--user', 'enable', 'mcp-mypc.service']).status === 0;
   await restartAgent();
-  return 'Could not set the helper to start at login (no systemd); it is running for now.';
+  return enabled ? 'The background helper starts whenever you log in.' : 'Could not set the helper to start at login (no systemd); it is running for now.';
 }
 
 const MAC_SERVICE = () => `gui/${userInfo().uid}/${MAC_LABEL}`;

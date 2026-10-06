@@ -1,0 +1,24 @@
+{
+ "closed": null,
+ "def_hash": "19e6d7c5237f1f10",
+ "id": "20261006-agent-shipped-bytes-4147",
+ "idea": "setup.mjs: the Linux autostart branch calls restartAgent twice; call it once (same behaviour, less code)",
+ "lane": "normal",
+ "metric": "agent.shipped_bytes",
+ "opened": {
+  "at": "2026-10-06T11:08:04+00:00",
+  "by": "blogi",
+  "commit": "2a3f6202354123ae2fa53d61efefd9d85f218bc3",
+  "machine": "MPC-HELL"
+ },
+ "pass_line": null,
+ "predict": {
+  "expect": 40.0,
+  "hi": 80.0,
+  "lo": 20.0,
+  "p_keep": 0.8
+ },
+ "probe_minutes": null,
+ "project": "mcpmypc",
+ "schema": "hydra-rsi-trial/1"
+}
