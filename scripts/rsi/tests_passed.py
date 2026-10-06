@@ -6,7 +6,7 @@ import subprocess
 files = sorted(glob.glob("test/*.test.mjs"))
 passed = 0
 if files:
-    run = subprocess.run(["node", "--test", *files], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    run = subprocess.run(["node", "--test", "--test-reporter=tap", *files], capture_output=True, text=True, encoding="utf-8", errors="replace")
     match = re.search(r"^# pass (\d+)", run.stdout, re.M)
     if match:
         passed = int(match.group(1))
