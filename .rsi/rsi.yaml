@@ -1,0 +1,20 @@
+schema: hydra-rsi/1
+# Size of the code a user installs and runs (bin/ + src/ + package.json at HEAD), and the number of unit tests passing.
+# Smaller shipped code with no fewer passing tests means a leaner MCP-MyPC agent.
+metrics:
+  - id: agent.shipped_bytes
+    kind: size
+    better: lower
+    unit: bytes
+    measure: "python scripts/rsi/shipped_bytes.py"
+    pick: 'shipped_bytes=(\d+)'
+    gate: exact
+    light: true
+  - id: tests.passed
+    kind: count
+    better: higher
+    unit: tests
+    measure: "python scripts/rsi/tests_passed.py"
+    pick: 'tests_passed=(\d+)'
+    gate: exact
+    light: false
